@@ -522,7 +522,8 @@ class CreateMealRequest(BaseModel):
 import logging
 
 from ..ai.image_analyzer import analyze_food
-from ..database.repository import get_meal, save_meal
+from ..database.repository import (delete_meal as delete_meal_repo,
+                                    get_meal, get_meals, save_meal, get_daily_summary)
 from ..nutrition.calculator import calculate_meal_nutrition
 from ..utils.errors import FoodNotFound, MealNotFound
 from ..utils.timeutil import local_date_of, to_utc_iso
@@ -555,9 +556,19 @@ def create_meal(payload: dict) -> dict:
     }
     meal_id = save_meal(meal_data)
     return get_meal(meal_id)
+
+
+def delete_meal(meal_id: int) -> dict:
+    """删除餐食。不存在抛 MealNotFound，成功返回 {meal_id, deleted: True}。"""
+    found = delete_meal_repo(meal_id)
+    if not found:
+        raise MealNotFound(f"Meal {meal_id} not found.",
+                           details={"meal_id": meal_id})
+    log.info("deleted meal_id=%d", meal_id)
+    return {"meal_id": meal_id, "deleted": True}
 ```
 
-> 注意：`match_food()` 是给营养模块内部用的，你**不需要**在服务层再调一次；`save_meal()` 会用 `food_name` 自己去参考表里找 `food_id`。
+> 注意：`match_food()` 是给营养模块内部用的，你**不需要**在服务层再调一次；`save_meal()` 会用 `food_name` 自己去参考表里找 `food_id`。服务层的 `delete_meal` 调用仓储层的同名函数（为避免名字冲突，import 时用 `delete_meal_repo` 别名）。
 
 ### 8.6 上传校验与落盘
 
@@ -640,6 +651,14 @@ def today_local() -> str:
 ### 8.8 删除与看板
 
 ```python
+# app/routes/meals.py（续——DELETE /meals/<int:meal_id>）
+@bp.delete("/meals/<int:meal_id>")
+def delete(meal_id):
+    data = meal_service.delete_meal(meal_id)
+    return jsonify({"status": "success", "data": data}), 200
+```
+
+```python
 # app/routes/dashboard.py
 from flask import Blueprint, jsonify, request
 
@@ -712,7 +731,7 @@ def test_create_meal_ignores_client_calories(client):
 |---|---|---|
 | 成员2 AI | `analyze_food(image_path)` | 自己造 `mock_ai_result.json` 返回，路由照常跑 |
 | 成员3 营养 | `calculate_meal_nutrition(foods)`、`match_food(name)` | 用固定返回 `{"items":[],"totals":{...0},"warnings":[]}` 的假实现 |
-| 成员5 数据库 | `save_meal`、`get_meal`、`get_meals`、`get_daily_summary` | 用一个内存字典假仓储 |
+| 成员5 数据库 | `save_meal`、`get_meal`、`get_meals`、`delete_meal`、`get_daily_summary` | 用一个内存字典假仓储 |
 
 **原则**：永远不要"等别人写完"。你至少能先把 HTTP 层和错误处理完整测通。
 

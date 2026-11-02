@@ -101,7 +101,7 @@ app/nutrition/food_database.json     # 你的核心资产（20–30 条）
 app/nutrition/food_repository.py     # load_food_index()
 app/nutrition/food_matcher.py        # match_food()
 app/nutrition/calculator.py          # calculate_food_nutrition / calculate_meal_nutrition
-app/nutrition/schemas.py             # NutritionItem / NutritionResult（建议有）
+app/nutrition/schemas.py             # NutritionItem / NutritionResult（必须有）
 tests/unit/test_calculator.py
 tests/unit/test_food_matcher.py
 ```
@@ -155,7 +155,7 @@ tests/unit/test_food_matcher.py
 | `aliases` | array[string] | 否 | 小写，不得与其他 `food_name` 冲突 |
 | `is_verified` | 0/1 | 是 | 人工核对过填 1 |
 
-### 5.2 初始 24 条数据（可直接用，核对后把 `is_verified` 改 1）
+### 5.2 初始 29 条数据（可直接用，核对后把 `is_verified` 改 1）
 
 | food_name | display_name | kcal | protein | carbs | fat | source |
 |---|---|---|---|---|---|---|
@@ -312,7 +312,7 @@ for each food in foods:
 | 周 | 你要交付 | 验收 |
 |---|---|---|
 | 1 | `food_database.json` 骨架 + 10 条数据；`match_food` 骨架；3 条测试 | 能按名字查到条目 |
-| 2 | 24 条数据齐；`calculate_food_nutrition`；取整规则；8 条测试 | 180 g 米饭 == 234.0 |
+| 2 | 29 条数据齐；`calculate_food_nutrition`；取整规则；8 条测试 | 180 g 米饭 == 234.0 |
 | 3 | `calculate_meal_nutrition` + warnings 全规则；12 条测试 | 用 mock AI 结果能算出整餐 |
 | 4 | 配合联调：修正边界（缺重量、非法重量）；性能无关 | 前端改重量后数字跟着变 |
 | 5 | 补充测试；核对数据源；标注 `is_verified` | 抽查 10 条与 USDA 一致 |
@@ -366,6 +366,36 @@ for each food in foods:
 ---
 
 ## 8. 代码示例
+
+### 8.0 Pydantic 模型（`app/nutrition/schemas.py`，**必须有**）
+
+```python
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+
+class NutritionItem(BaseModel):
+    """契约 C 的 items[] 里的一条。"""
+    food_name: str = Field(min_length=1, max_length=60)
+    display_name: str = Field(min_length=1, max_length=100)
+    weight_g: float = Field(gt=0, le=5000)
+    calories_kcal: float = Field(ge=0)
+    protein_g: float = Field(ge=0)
+    carbs_g: float = Field(ge=0)
+    fat_g: float = Field(ge=0)
+    food_data_source: str = Field(default="local")
+
+
+class NutritionResult(BaseModel):
+    """契约 C 的完整返回值。"""
+    schema_version: Literal["1.0"] = "1.0"
+    items: list[NutritionItem] = Field(default_factory=list, max_length=20)
+    totals: dict
+    warnings: list[str] = Field(default_factory=list)
+```
+
+> 这个模型用于**运行时自检**：`1` 计算完成后用 `NutritionResult.model_validate(result)` 确认形状正确；2 在测试中代替手工断言逐个字段。与 `ai/schemas.py` 的 `AIAnalysis` 对应，保证两端 Pydantic 校验风格一致。
 
 ### 8.1 加载与索引
 
@@ -657,12 +687,12 @@ def test_unknown_food_does_not_raise():
 git checkout develop && git pull
 git checkout -b feature/nutrition
 git add app/nutrition tests/unit/test_calculator.py tests/unit/test_food_matcher.py
-git commit -m "feat(nutrition): add 24 reference foods and meal calculator"
+git commit -m "feat(nutrition): add 29 reference foods and meal calculator"
 git push -u origin feature/nutrition
 ```
 
 提交示例：
-- `feat(nutrition): add food database with 24 entries`
+- `feat(nutrition): add food database with 29 entries`
 - `feat(nutrition): implement per-100g calculation with decimal rounding`
 - `fix(nutrition): treat zero weight as invalid instead of zero calories`
 - `test(nutrition): cover unmatched and missing weight paths`
@@ -678,7 +708,7 @@ PR 描述必须包含：
 
 ### 12.1 代码
 
-- [ ] `food_database.json` ≥20 条（建议 24），每条字段齐全、`food_name` 唯一
+- [ ] `food_database.json` ≥20 条（建议 29），每条字段齐全、`food_name` 唯一
 - [ ] `load_food_index()` 带缓存，`aliases` 已注册
 - [ ] `match_food()` 三步匹配，未知返回 `None`
 - [ ] `calculate_food_nutrition()` 用 `Decimal`，取整符合 §8.3

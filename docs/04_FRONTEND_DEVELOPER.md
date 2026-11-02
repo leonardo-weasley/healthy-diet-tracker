@@ -137,6 +137,8 @@ app/static/
 
 **判定顺序**：`res.ok` → `body.status` → 取 `data` 或抛错。
 
+> ⚠️ **重要**：外层 `status` 是 HTTP 信封状态，**永远**是 `"success"`（只要 HTTP 2xx）。业务成功/失败看的是 **`data.status`**（`"success"` / `"partial"` / `"error"`）。判断识别结果时，**永远检查 `data.status`，不是外层 `body.status`**。例：AI 认不出食物时，HTTP 200 + `body.status: "success"` + `data.status: "error"`。
+
 ### 5.2 POST /api/v1/analyze（上传页用）
 
 请求：`FormData`，字段 `image`（文件）、`meal_type`（字符串）。
@@ -426,6 +428,7 @@ async function analyzeMeal(file, mealType) {
     form.append("meal_type", mealType);
 
     const data = await apiFetch("/analyze", { method: "POST", body: form });
+    data.meal_type = mealType;  // 契约 A 不含 meal_type，手动补上以便结果页使用
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify(data));
     location.href = "/result";
   } catch (err) {
@@ -450,6 +453,7 @@ function initResultPage() {
 
   const draft = JSON.parse(raw);
   state.imagePath = draft.image_path || null;
+  state.mealType = draft.meal_type || "lunch";  // 由 upload.js 补入，默认 lunch
   state.foods = (draft.foods || []).map((f) => ({
     food_name: f.food_name,
     display_name: f.display_name || "",
@@ -491,9 +495,19 @@ function syncSaveButtonState() {
 }
 
 function buildMealPayload() {
+  // 生成带本地偏移量的 ISO 8601，如 "2026-11-01T12:30:00+08:00"
+  // 不能用 toISOString()——它返回 UTC 的 "Z" 后缀，会导致后端算错 meal_date
+  const now = new Date();
+  const offsetMin = -now.getTimezoneOffset();
+  const sign = offsetMin >= 0 ? "+" : "-";
+  const pad = (n) => String(Math.abs(n)).padStart(2, "0");
+  const localIso = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate())
+    + "T" + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds())
+    + sign + pad(Math.floor(Math.abs(offsetMin) / 60)) + ":" + pad(Math.abs(offsetMin) % 60);
+
   return {
     meal_type: state.mealType,
-    meal_datetime: new Date().toISOString(),   // 后端会按 APP_TIMEZONE 解释
+    meal_datetime: localIso,
     image_path: state.imagePath,
     items: [...document.querySelectorAll(".food-row")].map((row, i) => ({
       food_name: state.foods[i]?.food_name ?? null,

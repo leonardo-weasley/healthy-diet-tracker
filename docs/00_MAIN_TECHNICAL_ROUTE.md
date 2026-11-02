@@ -31,7 +31,7 @@ AI 模块      营养模块      数据库模块
 
 ### A.2 端到端流程
 
-**AI 永远不负责算卡路里；营养引擎永远不许调 AI；前端永远不许直连数据库或 AI 供应商。**
+**AI 永远不负责算卡路里；营养引擎永远不许调 AI；前端永远不许直连数据库或 AI 供应商；AI 模块不做图片预处理（校验/缩放/EXIF/落盘全部由成员1 的 `utils/images.py` 一次性完成，AI 模块拿到的 `image_path` 已经是可直接使用的最终文件）。**
 
 ```mermaid
 flowchart TD
@@ -74,6 +74,7 @@ flowchart TD
 | 营养模块 | AI 模块 | — | **禁止** |
 | 浏览器 | 数据库 / AI / OpenAI / Gemini | — | **禁止** |
 | AI 模块 | 营养模块 | — | **禁止** |
+| AI 模块 | Pillow / 图片缩放 / EXIF | — | **禁止**——AI 模块只接收已处理好的 `image_path` |
 
 ### A.4 为什么必须把 AI 和营养拆开
 
@@ -105,6 +106,21 @@ flowchart TD
 | Git + GitHub | — | 协作 | 分支/PR 流程本身就是考核项 |
 
 **明确不用**：React、Vue、Node.js、Docker、Redis、Celery、微服务、消息队列、Alembic 迁移、用户鉴权与账号体系。
+
+### B.1 统一 `requirements.txt`
+
+```text
+Flask>=3.0
+Flask-SQLAlchemy>=3.1
+SQLAlchemy>=2.0
+google-genai>=1.0,<2.0
+pydantic>=2.6
+Pillow>=10.0
+python-dotenv>=1.0
+pytest>=8.0
+```
+
+> 各成员文档分别列出自己的子集，但实际安装必须用这份完整清单。`google-genai` 限定 `>=1.0,<2.0` 是因为 1.0 起才使用 `genai.Client` 新式 API，与 0.x 不兼容。
 
 ---
 
@@ -157,12 +173,12 @@ healthy-diet-tracker/
 │   │   ├── food_matcher.py             # match_food(food_name) -> dict | None
 │   │   ├── food_repository.py          # load_food_index()——缓存读取 JSON
 │   │   ├── food_database.json          # 20–30 条参考食物（每 100 g）
-│   │   └── schemas.py                  # NutritionItem、NutritionResult（建议有）
+│   │   └── schemas.py                  # NutritionItem、NutritionResult（必须有）
 │   │
 │   ├── database/                       # 成员5
 │   │   ├── __init__.py
 │   │   ├── models.py                   # Food、Meal、MealItem
-│   │   └── repository.py               # save_meal、get_meal、get_meals、get_daily_summary
+│   │   └── repository.py               # save_meal、get_meal、get_meals、delete_meal、get_daily_summary
 │   │
 │   ├── utils/                          # 成员1（images/errors/timeutil），他人只读
 │   │   ├── __init__.py
@@ -692,7 +708,7 @@ curl -X POST http://127.0.0.1:5000/api/v1/meals \
 
 ## G. Python 模块接口
 
-以下七个签名**固定不变**。任何成员文档都不得重新定义；要改必须走 PR 修改本文件并全组签字。
+以下八个签名**固定不变**。任何成员文档都不得重新定义；要改必须走 PR 修改本文件并全组签字。
 
 ```python
 # app/ai/image_analyzer.py                       （成员2）
@@ -717,6 +733,9 @@ def get_meal(meal_id: int) -> dict | None:
 def get_meals(date_from: str | None = None, date_to: str | None = None) -> list[dict]:
     """返回历史摘要列表（F.3 的列表项），按时间倒序。None 表示不限。"""
 
+def delete_meal(meal_id: int) -> bool:
+    """删除该餐食及其全部明细（级联）。存在并删除成功返回 True，不存在返回 False。"""
+
 def get_daily_summary(date: str) -> dict:
     """输入：本地日期 'YYYY-MM-DD'。返回契约 E（不含 by_meal_type）。"""
 ```
@@ -731,6 +750,7 @@ def get_daily_summary(date: str) -> dict:
 | `save_meal(meal_data)` | `dict`，含 `meal_type`、`meal_datetime_utc`、`meal_date`、`image_path`、`items[]` | `int` meal_id | `DatabaseError` |
 | `get_meal(meal_id)` | `int` | 契约 D 或 `None` | `DatabaseError` |
 | `get_meals(date_from, date_to)` | 两个 `str \| None` | `list[dict]` 摘要 | `DatabaseError` |
+| `delete_meal(meal_id)` | `int` | `bool`（存在并删除返回 `True`，不存在返回 `False`） | `DatabaseError` |
 | `get_daily_summary(date)` | `str` `YYYY-MM-DD` | `dict`（契约 E 去掉 `by_meal_type`） | `DatabaseError` |
 
 ### G.2 允许使用的异常
@@ -740,17 +760,58 @@ def get_daily_summary(date: str) -> dict:
 class ApiError(Exception):
     def __init__(self, code: str, message: str, http_status: int = 400, details=None): ...
 
-class InvalidImage(ApiError):        # code INVALID_IMAGE, 400
-class ImageTooLarge(ApiError):       # code IMAGE_TOO_LARGE, 413
-class UnsupportedMediaType(ApiError)# code UNSUPPORTED_MEDIA_TYPE, 415
-class InvalidRequest(ApiError):      # code INVALID_REQUEST, 400
-class InvalidWeight(ApiError):       # code INVALID_WEIGHT, 422
-class FoodNotFound(ApiError):        # code FOOD_NOT_FOUND, 422
-class MealNotFound(ApiError):        # code MEAL_NOT_FOUND, 404
-class AiProviderError(ApiError):     # code AI_PROVIDER_ERROR, 502
-class InvalidAiResponse(ApiError):   # code INVALID_AI_RESPONSE, 502
-class DatabaseError(ApiError):       # code DATABASE_ERROR, 500
+class InvalidImage(ApiError):
+    """code=INVALID_IMAGE, http_status=400"""
+    def __init__(self, message: str = "Invalid image.", details=None):
+        super().__init__("INVALID_IMAGE", message, 400, details)
+
+class ImageTooLarge(ApiError):
+    """code=IMAGE_TOO_LARGE, http_status=413"""
+    def __init__(self, message: str = "Image exceeds size limit.", details=None):
+        super().__init__("IMAGE_TOO_LARGE", message, 413, details)
+
+class UnsupportedMediaType(ApiError):
+    """code=UNSUPPORTED_MEDIA_TYPE, http_status=415"""
+    def __init__(self, message: str = "Unsupported media type.", details=None):
+        super().__init__("UNSUPPORTED_MEDIA_TYPE", message, 415, details)
+
+class InvalidRequest(ApiError):
+    """code=INVALID_REQUEST, http_status=400"""
+    def __init__(self, message: str = "Invalid request.", details=None):
+        super().__init__("INVALID_REQUEST", message, 400, details)
+
+class InvalidWeight(ApiError):
+    """code=INVALID_WEIGHT, http_status=422"""
+    def __init__(self, message: str = "Invalid weight value.", details=None):
+        super().__init__("INVALID_WEIGHT", message, 422, details)
+
+class FoodNotFound(ApiError):
+    """code=FOOD_NOT_FOUND, http_status=422"""
+    def __init__(self, message: str = "Food not found in database.", details=None):
+        super().__init__("FOOD_NOT_FOUND", message, 422, details)
+
+class MealNotFound(ApiError):
+    """code=MEAL_NOT_FOUND, http_status=404"""
+    def __init__(self, message: str = "Meal not found.", details=None):
+        super().__init__("MEAL_NOT_FOUND", message, 404, details)
+
+class AiProviderError(ApiError):
+    """code=AI_PROVIDER_ERROR, http_status=502"""
+    def __init__(self, message: str = "AI provider error.", details=None):
+        super().__init__("AI_PROVIDER_ERROR", message, 502, details)
+
+class InvalidAiResponse(ApiError):
+    """code=INVALID_AI_RESPONSE, http_status=502"""
+    def __init__(self, message: str = "Invalid AI response.", details=None):
+        super().__init__("INVALID_AI_RESPONSE", message, 502, details)
+
+class DatabaseError(ApiError):
+    """code=DATABASE_ERROR, http_status=500"""
+    def __init__(self, message: str = "Database error.", details=None):
+        super().__init__("DATABASE_ERROR", message, 500, details)
 ```
+
+各子类构造签名统一为 `(message, details=None)`——`code` 和 `http_status` 由子类硬编码，调用方只需传 `message` 与可选的 `details`。
 
 模块层只抛异常；**只有** `routes/` 把它们翻译成 HTTP 响应体。模块不得 import Flask。
 
@@ -947,8 +1008,8 @@ scope : backend | ai | nutrition | frontend | database | docs
 |---|---|
 | 营养计算 | 8 |
 | 食物匹配 | 4 |
-| AI schema 校验 | 5 |
-| 数据库仓储 | 6 |
+| AI schema 校验 | 10 |
+| 数据库仓储 | 8 |
 | API 端点（正常 + 异常） | 10 |
 | 端到端流程 | 4 |
 
@@ -985,10 +1046,10 @@ scope : backend | ai | nutrition | frontend | database | docs
 ### L.2 非功能
 
 - [ ] 六个端点与 §F 完全一致，没有多余端点。
-- [ ] §G 的七个函数签名全部存在，名称与参数顺序一致。
+- [ ] §G 的八个函数签名全部存在，名称与参数顺序一致。
 - [ ] 所有错误响应符合契约 F，且错误码都在 §H.1 表内。
 - [ ] 仓库中不含密钥（`git grep -i "AIza\|sk-"` 应无输出）。
-- [ ] `pytest` 全绿，测试总数 ≥37（§K.2）。
+- [ ] `pytest` 全绿，测试总数 ≥44（§K.2）。
 - [ ] 只需 `python run.py` + 文档里写的 `pip install` 就能运行。
 - [ ] 任意两名成员能互相说清对方模块的输入/输出（契约素养）。
 

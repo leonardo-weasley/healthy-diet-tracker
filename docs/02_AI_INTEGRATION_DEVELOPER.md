@@ -10,7 +10,7 @@
 | 你负责 | 你不负责 |
 |---|---|
 | 选一家多模态 AI 供应商并跑通 | 营养计算（成员3） |
-| 图片预处理（尺寸、MIME、EXIF） | 上传校验与落盘（成员1 已做完，你只拿到路径） |
+| 防御性图片读取校验（文件存在性、可读性） | 上传校验与落盘与预处理（成员1 已全部完成，你只拿到已处理的路径） |
 | 提示词设计与维护（`prompts.py`） | 保存餐食（成员5） |
 | 请求结构化 JSON 输出 | 页面展示（成员4） |
 | 解析 + Pydantic 校验 | 改契约（需全组同意） |
@@ -69,8 +69,10 @@
 ### 3.1 依赖
 
 ```bash
-pip install "google-genai>=0.3" "pydantic>=2.6" "Pillow>=10.0" "python-dotenv>=1.0" "pytest>=8.0"
+pip install "google-genai>=1.0,<2.0" "pydantic>=2.6" "Pillow>=10.0" "python-dotenv>=1.0" "pytest>=8.0"
 ```
+
+> `google-genai` 1.0 起使用 `genai.Client` 新式 API，与 0.x 的 `google.generativeai` 完全不兼容。必须锁定 `>=1.0,<2.0`。
 
 ### 3.2 供应商与模型
 
@@ -371,7 +373,9 @@ class AIAnalysis(BaseModel):
 
 ```python
 import json
+import logging
 import os
+import time
 from pathlib import Path
 
 from google import genai
@@ -379,21 +383,38 @@ from google.genai import types
 
 from ..utils.errors import AiProviderError, InvalidAiResponse
 
+log = logging.getLogger(__name__)
+
 _MIME_BY_EXT = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                 ".png": "image/png", ".webp": "image/webp"}
 
+# ── 单例 Client：避免每次请求都重建 ──────────────────────────
+_client: genai.Client | None = None
 
-def _build_client() -> "genai.Client":
+
+def _get_client() -> genai.Client:
+    """懒初始化单例。Key 缺失时立即抛出，不延到请求时。"""
+    global _client
+    if _client is not None:
+        return _client
     api_key = os.getenv("AI_API_KEY", "").strip()
     if not api_key:
         raise AiProviderError("AI_API_KEY is not configured.",
                               details={"reason": "missing_api_key"})
-    return genai.Client(api_key=api_key)
+    _client = genai.Client(api_key=api_key)
+    return _client
 
 
-def call_vision_api(image_path: str, prompt: str) -> dict:
-    client = _build_client()
+# ── 单次 SDK 调用（无重试） ─────────────────────────────────
+def _call_sdk_once(image_path: str, prompt: str) -> dict:
+    """发一次请求。仅 json.loads，不做业务校验。
+       抛出 AiProviderError / InvalidAiResponse。"""
+    client = _get_client()
     path = Path(image_path)
+    if not path.is_file():
+        raise AiProviderError("Image file not found on disk.",
+                              details={"reason": "file_missing",
+                                       "path": str(path)})
     mime = _MIME_BY_EXT.get(path.suffix.lower(), "image/jpeg")
 
     try:
@@ -423,6 +444,42 @@ def call_vision_api(image_path: str, prompt: str) -> dict:
         raise InvalidAiResponse("The AI response was not valid JSON.",
                                 details={"reason": "not_json",
                                          "preview": text[:200]}) from exc
+
+
+# ── 带重试的公开入口 ────────────────────────────────────────
+def call_vision_api(image_path: str, prompt: str) -> dict:
+    """输入：本地图片路径 + 提示词全文
+       输出：模型返回的原始 dict（仅 json.loads，不做业务校验）
+       重试策略（与 §6.2 一致）：
+         - 超时 / 5xx / 网络错误：共 2 次尝试（1 次重试）
+         - 429 限流：等 2 秒后重试 1 次
+         - 返回非 JSON：重试 1 次（同一 prompt）
+         - JSON 结构不符合契约：不重试，直接上抛
+       抛出：AiProviderError（网络/超时/鉴权/额度）
+             InvalidAiResponse（返回的不是 JSON）"""
+    last_exc: Exception | None = None
+    for attempt in range(2):                      # 最多 2 次尝试
+        try:
+            return _call_sdk_once(image_path, prompt)
+        except AiProviderError as exc:
+            last_exc = exc
+            reason = (exc.details or {}).get("reason", "")
+            if reason == "rate_limited" and attempt == 0:
+                log.warning("rate limited, retrying after 2 s")
+                time.sleep(2)
+                continue
+            if attempt == 0:                      # 超时 / 5xx / 网络错误：重试 1 次
+                log.warning("provider error (%s), retrying attempt %d", reason, attempt + 1)
+                continue
+        except InvalidAiResponse as exc:
+            last_exc = exc
+            reason = (exc.details or {}).get("reason", "")
+            if reason == "not_json" and attempt == 0:  # 非 JSON：重试 1 次
+                log.warning("non-JSON response, retrying attempt %d", attempt + 1)
+                continue
+            raise                                 # schema 错误 / empty：不重试
+    # 两次都失败
+    raise last_exc  # type: ignore[misc]
 ```
 
 > 上面这段是**供应商相关实现**。SDK 的方法名/参数可能随版本变化，写不通就查官方文档；不要凭猜改参数。
@@ -463,7 +520,8 @@ def _collect_warnings(analysis: AIAnalysis) -> list[str]:
 
 
 def analyze_food(image_path: str) -> dict:
-    raw = call_vision_api(image_path, PROMPT_TEMPLATE)   # 已重试 1 次
+    """调用 call_vision_api（内含重试，见 §6.2）→ Pydantic 校验 → 状态判定 → 组装 warnings。"""
+    raw = call_vision_api(image_path, PROMPT_TEMPLATE)
     try:
         analysis = AIAnalysis.model_validate(raw)
     except ValidationError as exc:
@@ -482,21 +540,19 @@ def analyze_food(image_path: str) -> dict:
     return payload
 ```
 
-### 8.5 图片预处理（可选但推荐）
+### 8.5 图片预处理——**你不需要做**
 
-若成员1 已经把图片缩到 1024 px，你可跳过；否则在调用前自己缩一次：
+成员 1 的 `utils/images.py` 已经在 `/analyze` 路由中一次性完成了：
 
-```python
-from PIL import Image, ImageOps
+- MIME 白名单校验（JPEG / PNG / WebP）
+- 文件大小检查（≤ 8 MB）
+- EXIF 方向修正（`ImageOps.exif_transpose`）
+- 长边缩放到 1024 px
+- 落盘到 `uploads/YYYY/MM/uuid.jpg`
 
-def _prepare(image_path: str, max_side: int = 1024) -> None:
-    with Image.open(image_path) as img:
-        img = ImageOps.exif_transpose(img).convert("RGB")
-        img.thumbnail((max_side, max_side))
-        img.save(image_path, format="JPEG", quality=85, optimize=True)
-```
+你拿到的 `image_path` **已经是可直接发送给 API 的最终文件**。你的代码里**不许**再对图片做任何缩放、EXIF 修正或覆盖保存——这些操作写在 `client.py` 或 `image_analyzer.py` 里会与成员 1 的逻辑冲突，且可能破坏原图。
 
-> 不要在原图上做破坏性缩放却不告知成员1——要么提前约定，要么另存临时文件。
+你唯一需要做的防御性检查是确认文件存在且可读（见 §8.3 `_call_sdk_once` 开头的 `path.is_file()` 判断）。
 
 ---
 

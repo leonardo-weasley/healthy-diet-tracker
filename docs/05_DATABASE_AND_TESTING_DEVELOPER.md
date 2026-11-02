@@ -19,7 +19,7 @@
 
 ### 1.2 最终交付物（一句话）
 
-> 一个可重复初始化的 SQLite 库（三张表 + 唯一约束 + 级联），四个仓储函数（`save_meal` / `get_meal` / `get_meals` / `get_daily_summary`）全部可用，以及一套**不联网、不需要 Key、10 秒跑完**的测试体系。
+> 一个可重复初始化的 SQLite 库（三张表 + 唯一约束 + 级联），五个仓储函数（`save_meal` / `get_meal` / `get_meals` / `delete_meal` / `get_daily_summary`）全部可用，以及一套**不联网、不需要 Key、10 秒跑完**的测试体系。
 
 ### 1.3 成功标准
 
@@ -47,6 +47,7 @@
 | `save_meal(meal_data)` | 事务内写 `meal` + 全部 `meal_item`，返回 `meal_id` |
 | `get_meal(meal_id)` | 取契约 D；不存在返回 `None` |
 | `get_meals(date_from, date_to)` | 历史摘要列表（给 `GET /meals`） |
+| `delete_meal(meal_id)` | 级联删除餐食及其全部明细；存在返回 `True`，不存在返回 `False` |
 | `get_daily_summary(date)` | 契约 E（给看板） |
 
 ### 2.3 测试体系
@@ -98,7 +99,7 @@ pip install "Flask-SQLAlchemy>=3.1" "SQLAlchemy>=2.0" "pytest>=8.0"
 app/extensions.py                 # db = SQLAlchemy()
 app/database/__init__.py
 app/database/models.py            # Food / Meal / MealItem
-app/database/repository.py        # 四个仓储函数
+app/database/repository.py        # 五个仓储函数
 scripts/init_db.py                # create_all()
 scripts/seed_foods.py             # 幂等导入 JSON → food 表
 tests/conftest.py                 # app / client / db fixtures
@@ -116,7 +117,7 @@ tests/e2e/test_workflow.py
 |---|---|
 | `app/extensions.py` | `db = SQLAlchemy()` |
 | `app/database/models.py` | 三张表的 ORM 模型 |
-| `app/database/repository.py` | 四个共享函数 + 辅助查询 |
+| `app/database/repository.py` | 五个共享函数 + 辅助查询 |
 | `scripts/init_db.py` | 建表脚本 |
 | `scripts/seed_foods.py` | 种子数据 |
 | `tests/conftest.py` | 全组共用的夹具 |
@@ -129,7 +130,7 @@ tests/e2e/test_workflow.py
 
 | 他人 | 用法 | 禁止 |
 |---|---|---|
-| 成员1 | `from app.database.repository import save_meal, get_meal, get_meals, get_daily_summary` | 在路由里直接 `db.session` |
+| 成员1 | `from app.database.repository import save_meal, get_meal, get_meals, delete_meal, get_daily_summary` | 在路由里直接 `db.session` |
 | 成员3 | 不直接使用；他的 JSON 由你的 `seed_foods.py` 导入 | 改你的模型 |
 | 成员2 | 不相关 | — |
 | 成员4 | 只看到聚合后的 JSON | 让你为图表加专用接口 |
@@ -287,6 +288,7 @@ tests/e2e/test_workflow.py
 def save_meal(meal_data: dict) -> int: ...
 def get_meal(meal_id: int) -> dict | None: ...
 def get_meals(date_from: str | None = None, date_to: str | None = None) -> list[dict]: ...
+def delete_meal(meal_id: int) -> bool: ...
 def get_daily_summary(date: str) -> dict: ...
 ```
 
@@ -537,6 +539,22 @@ def save_meal(meal_data: dict) -> int:
         db.session.rollback()
         log.exception("save_meal failed")
         raise DatabaseError("Failed to save the meal.") from exc
+
+
+def delete_meal(meal_id: int) -> bool:
+    """级联删除餐食及其全部明细。存在返回 True，不存在返回 False。"""
+    meal = db.session.get(Meal, meal_id)
+    if meal is None:
+        return False
+    try:
+        db.session.delete(meal)   # cascade="all, delete-orphan" 自动删明细
+        db.session.commit()
+        log.info("deleted meal_id=%d", meal_id)
+        return True
+    except Exception as exc:
+        db.session.rollback()
+        log.exception("delete_meal failed")
+        raise DatabaseError("Failed to delete the meal.") from exc
 ```
 
 ### 8.4 读取与聚合
@@ -721,7 +739,7 @@ def sample_meal_payload():
 
 ## 9. 测试要求
 
-### 9.1 数据库单元测试（7 条）
+### 9.1 数据库单元测试（8 条）
 
 | # | 用例 | 期望 |
 |---|---|---|
@@ -732,6 +750,7 @@ def sample_meal_payload():
 | D5 | 重复 `food_name` 插入 `food` | 失败（UNIQUE） |
 | D6 | `get_daily_summary` 空日期 | `totals` 全 `0.0`，`meal_count == 0` |
 | D7 | 同一天两餐 | `meal_count == 2`，`totals` 为两者之和 |
+| D8 | `delete_meal` 存在与不存在 | 存在 id 返回 `True`，明细级联消失；不存在 id 返回 `False` |
 
 ### 9.2 集成测试（3 条）
 
@@ -793,7 +812,7 @@ def sample_meal_payload():
 
 | 模块 | 用你什么 | 你保证什么 |
 |---|---|---|
-| 成员1 | 四个仓储函数、`conftest.py` 夹具 | 返回值形状严格等于 `00` §E.4/E.5 |
+| 成员1 | 五个仓储函数、`conftest.py` 夹具 | 返回值形状严格等于 `00` §E.4/E.5 |
 | 成员4 | 看板聚合数值 | `by_meal_type` 缺失也能用（不返回它） |
 | 全组 | 测试夹具、mock 文件 | 别人写测试不需要理解你的模型 |
 
@@ -847,7 +866,7 @@ PR 描述必须含：
 
 - [ ] 三张表建好，约束（CHECK / UNIQUE / FK）齐全
 - [ ] `PRAGMA foreign_keys=ON` 生效（D2 证明）
-- [ ] 四个仓储函数签名与 `00` §G 一致
+- [ ] 五个仓储函数签名与 `00` §G 一致
 - [ ] `save_meal` 一个事务写完，失败回滚
 - [ ] `get_meal` 返回契约 D，`totals` 来自快照
 - [ ] `get_daily_summary` 空数据返回全 0，不是 `None`
@@ -856,7 +875,7 @@ PR 描述必须含：
 
 ### 12.2 测试
 
-- [ ] `tests/unit/test_repository.py` ≥6 条
+- [ ] `tests/unit/test_repository.py` ≥8 条
 - [ ] `tests/integration/test_pipeline.py` ≥3 条
 - [ ] `tests/e2e/test_workflow.py` ≥4 条
 - [ ] 11 个错误码全部有测试覆盖
