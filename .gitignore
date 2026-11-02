@@ -7,3 +7,21 @@
 *.p12
 secrets/
 credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# 运行时产物
+instance/
+uploads/
+
+# 真实照片不入 Git（00 §12.3）：本地留着跑回归，仓库里只放清单与 mock
+tests/fixtures/*.jpg
+tests/fixtures/*.jpeg
+!tests/fixtures/placeholder.jpg
+tests/fixtures/photos/

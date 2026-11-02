@@ -39,7 +39,7 @@ flowchart TD
     F1 --> S1["MealService<br/>analyze_uploaded_meal()"]
     S1 -->|"校验并落盘<br/>(utils/images.py)"| U["uploads/YYYY/MM/uuid.jpg"]
     S1 -->|"Python 调用<br/>analyze_food(image_path)"| AI["AI 模块<br/>ai/image_analyzer.py"]
-    AI -->|"HTTPS + 供应商 SDK<br/>仅 ai/client.py"| P["Gemini API<br/>(外部服务)"]
+    AI -->|"HTTPS + OpenAI 兼容 SDK<br/>仅 ai/client.py"| P["DeepSeek API<br/>(外部服务)"]
     P -->|"原始文本 / JSON"| AI
     AI -->|"Pydantic 校验<br/>ai/schemas.py"| S1
     S1 -->|"JSON 响应：<br/>image_path + foods[]"| B
@@ -68,11 +68,11 @@ flowchart TD
 | 服务层 | AI 模块 | Python 函数调用 | 允许 |
 | 服务层 | 营养模块 | Python 函数调用 | 允许 |
 | 服务层 | 数据库模块 | Python 函数调用 | 允许 |
-| AI 模块 | Gemini API | HTTPS（供应商 SDK） | 允许——**仅限 `ai/client.py` 内部** |
+| AI 模块 | DeepSeek API | HTTPS（OpenAI 兼容 SDK） | 允许——**仅限 `ai/client.py` 内部** |
 | 营养模块 | `food_database.json` | 读本地文件（缓存） | 允许 |
 | 数据库模块 | SQLite | SQLAlchemy ORM | 允许 |
 | 营养模块 | AI 模块 | — | **禁止** |
-| 浏览器 | 数据库 / AI / OpenAI / Gemini | — | **禁止** |
+| 浏览器 | 数据库 / AI / DeepSeek / OpenAI | — | **禁止** |
 | AI 模块 | 营养模块 | — | **禁止** |
 | AI 模块 | Pillow / 图片缩放 / EXIF | — | **禁止**——AI 模块只接收已处理好的 `image_path` |
 
@@ -96,7 +96,7 @@ flowchart TD
 | Python | 3.11+ | 运行时 | 需要 Flask、Pydantic v2、`str \| None` 类型写法 |
 | Flask | 3.x | HTTP 服务、路由、模板 | 本地同时提供 HTML 和 JSON 最轻的方案，无前端构建步骤 |
 | HTML/CSS/原生 JS | — | 界面 | 团队已会；上框架会引入没人会用的构建工具链 |
-| Gemini API（`google-genai`） | 最新 | 图片 → 结构化 JSON | MVP 只选一家；有免费额度；支持强制 JSON 输出 |
+| DeepSeek API（`openai` SDK，OpenAI 兼容） | 最新 | 图片 → 结构化 JSON | MVP 只选一家；`deepseek-flash` 支持图片输入与强制 JSON 输出；国内可直连 |
 | Pydantic | v2 | 校验跨模块数据 | 把"契约"变成可运行的断言 |
 | SQLite | 3 | 本地持久化 | 零安装、单文件、6 周个人数据量完全够 |
 | SQLAlchemy / Flask-SQLAlchemy | 2.x / 3.x | SQLite 之上的 ORM | 关系与级联开箱即用，免去到处手写 SQL |
@@ -113,14 +113,14 @@ flowchart TD
 Flask>=3.0
 Flask-SQLAlchemy>=3.1
 SQLAlchemy>=2.0
-google-genai>=1.0,<2.0
+openai>=3.0,<4.0
 pydantic>=2.6
 Pillow>=10.0
 python-dotenv>=1.0
 pytest>=8.0
 ```
 
-> 各成员文档分别列出自己的子集，但实际安装必须用这份完整清单。`google-genai` 限定 `>=1.0,<2.0` 是因为 1.0 起才使用 `genai.Client` 新式 API，与 0.x 不兼容。
+> 各成员文档分别列出自己的子集，但实际安装必须用这份完整清单。`openai` 是访问 DeepSeek 官方 API 的客户端（OpenAI 兼容格式，只改 `base_url` 与 `model`）；自 2026 年起项目不再使用 `google-genai`。
 
 ---
 
@@ -141,7 +141,8 @@ healthy-diet-tracker/
 │   ├── 02_AI_INTEGRATION_DEVELOPER.md  # FILE 4
 │   ├── 03_NUTRITION_ENGINE_DEVELOPER.md# FILE 5
 │   ├── 04_FRONTEND_DEVELOPER.md        # FILE 6
-│   └── 05_DATABASE_AND_TESTING_DEVELOPER.md # FILE 7
+│   ├── 05_DATABASE_AND_TESTING_DEVELOPER.md # FILE 7
+│   └── PORTION_EVAL.md                 # 成员2——30 张照片识别/份量误差回归表（第 5 周，选做）
 │
 ├── app/
 │   ├── __init__.py                     # create_app()——应用工厂（成员1）
@@ -162,7 +163,7 @@ healthy-diet-tracker/
 │   │
 │   ├── ai/                             # 成员2
 │   │   ├── __init__.py
-│   │   ├── client.py                   # 唯一允许 import google.* 的文件
+│   │   ├── client.py                   # 唯一允许 import openai 的文件
 │   │   ├── image_analyzer.py           # analyze_food(image_path) -> dict
 │   │   ├── prompts.py                  # PROMPT_TEMPLATE 常量
 │   │   └── schemas.py                  # AIAnalysis、DetectedFood
@@ -207,11 +208,14 @@ healthy-diet-tracker/
 │   ├── fixtures/
 │   │   ├── mock_ai_result.json
 │   │   ├── mock_ai_partial.json
-│   │   └── sample_meal.jpg
+│   │   ├── photos.json                 # 照片清单（成员2）：file / dish / note，回归脚本读它
+│   │   ├── sample_meal.jpg
+│   │   └── photos/                     # 真实照片，Git 忽略（清单里登记，文件本地保留）
 │   ├── unit/
 │   │   ├── test_calculator.py          # 成员3
 │   │   ├── test_food_matcher.py        # 成员3
 │   │   ├── test_ai_schema.py           # 成员2
+│   │   ├── test_ai_client.py           # 成员2——供应商适配（打桩，不联网）
 │   │   ├── test_repository.py          # 成员5
 │   │   └── test_api.py                 # 成员1
 │   ├── integration/

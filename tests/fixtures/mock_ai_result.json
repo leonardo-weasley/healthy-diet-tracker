@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "status": "success",
+  "foods": [
+    {
+      "food_name": "cooked_white_rice",
+      "display_name": "White rice",
+      "estimated_weight_g": 180.0,
+      "confidence": 0.95,
+      "notes": null
+    },
+    {
+      "food_name": "grilled_chicken_breast",
+      "display_name": "Grilled chicken breast",
+      "estimated_weight_g": 120.0,
+      "confidence": 0.88,
+      "notes": "Estimated portion"
+    }
+  ],
+  "warnings": []
+}

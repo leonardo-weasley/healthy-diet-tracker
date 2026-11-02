@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "status": "partial",
+  "foods": [
+    {
+      "food_name": "cooked_white_rice",
+      "display_name": "White rice",
+      "estimated_weight_g": 180.0,
+      "confidence": 0.95,
+      "notes": null
+    },
+    {
+      "food_name": null,
+      "display_name": "某种深色酱汁",
+      "estimated_weight_g": null,
+      "confidence": 0.42,
+      "notes": "Cannot identify from photo"
+    }
+  ],
+  "warnings": ["food_unrecognized: 某种深色酱汁", "missing_weight: 某种深色酱汁"]
+}
