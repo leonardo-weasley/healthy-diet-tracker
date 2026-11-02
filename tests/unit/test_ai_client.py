@@ -184,3 +184,43 @@ def test_missing_image_file(monkeypatch, tmp_path):
     with pytest.raises(AiProviderError) as exc:
         ai_client.call_vision_api(str(tmp_path / "nope.jpg"), "p")
     assert exc.value.details["reason"] == "file_missing"
+
+
+# ── 配了不支持图片的型号：立刻报错，不发请求 ───────────────
+def test_non_vision_model_is_rejected(monkeypatch, image):
+    monkeypatch.setenv("AI_MODEL", "deepseek-v4-pro")
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        raise AssertionError("不该真的发请求")
+
+    fake = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai_client, "_get_client", lambda: fake)
+
+    with pytest.raises(AiProviderError) as exc:
+        ai_client.call_vision_api(image, "p")
+    assert exc.value.details["reason"] == "model_not_supported"
+    assert exc.value.details["model"] == "deepseek-v4-pro"
+    assert calls == []
+
+
+def test_resolve_model_defaults_to_flash(monkeypatch):
+    monkeypatch.delenv("AI_MODEL", raising=False)
+    assert ai_client.resolve_model() == "deepseek-flash"
+
+
+# ── 相对路径：CWD 不对时回退到仓库根 ───────────────────────
+def test_relative_path_falls_back_to_project_root(monkeypatch, tmp_path):
+    _stub(monkeypatch, content='{"schema_version": "1.0", "status": "success",'
+                               ' "foods": [], "warnings": []}')
+    monkeypatch.chdir(tmp_path)  # 换到仓库外，模拟 Flask 从别的目录启动
+
+    payload = ai_client.call_vision_api("tests/fixtures/placeholder.jpg", "p")
+    assert payload["status"] == "success"
+
+
+def test_absolute_path_is_untouched(tmp_path):
+    path = tmp_path / "a.jpg"
+    path.write_bytes(b"x")
+    assert ai_client.resolve_image_path(str(path)) == path

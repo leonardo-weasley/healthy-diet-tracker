@@ -26,6 +26,12 @@ DEFAULT_TIMEOUT_SECONDS = 30.0
 MAX_OUTPUT_TOKENS = 2048
 RATE_LIMIT_BACKOFF_SECONDS = 2.0
 
+# 仓库根：app/ai/client.py -> app/ai -> app -> root
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# 明确不支持图片输入的型号，配到 /analyze 上要立刻报错（见 resolve_model）
+NON_VISION_MODELS = {"deepseek-v4-pro", "deepseek-reasoner"}
+
 # 只有这些 reason 允许重试（与 02 §6.2 一一对应）
 RETRYABLE_REASONS = {"timeout", "network", "rate_limited", "provider_5xx", "not_json"}
 
@@ -80,13 +86,42 @@ def _classify(exc: Exception) -> str:
     return "unknown"
 
 
+def resolve_model() -> str:
+    """读出要用的模型名，并挡掉明确不支持图片的型号。
+
+    `deepseek-v4-pro` 不支持图片输入，配错只会得到泛化的 400，排查成本很高；
+    在这里提前拦掉，报错能直接指出是配置问题。
+    """
+    model = (os.getenv("AI_MODEL") or DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    if model in NON_VISION_MODELS:
+        raise AiProviderError(
+            f"AI_MODEL={model!r} does not accept image input; "
+            f"use {DEFAULT_MODEL!r} for /analyze.",
+            details={"reason": "model_not_supported", "model": model},
+        )
+    return model
+
+
+def resolve_image_path(image_path: str) -> Path:
+    """相对路径先按当前目录找，找不到再按仓库根找。
+
+    Flask 可能从别的目录启动，`uploads/...` 这种仓库相对路径不能只看 CWD。
+    """
+    path = Path(image_path)
+    if path.is_absolute() or path.is_file():
+        return path
+    fallback = PROJECT_ROOT / path
+    return fallback if fallback.is_file() else path
+
+
 def _build_user_content(image_path: str, prompt: str) -> list[dict]:
     """图片必须是 base64 data URL，且只能放在 user 消息里。"""
-    path = Path(image_path)
+    path = resolve_image_path(image_path)
     if not path.is_file():
         raise AiProviderError(
             "Image file not found on disk.",
-            details={"reason": "file_missing", "path": str(path)},
+            details={"reason": "file_missing", "path": str(path),
+                     "cwd": str(Path.cwd())},
         )
     mime = _MIME_BY_SUFFIX.get(path.suffix.lower(), "image/jpeg")
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
@@ -99,10 +134,12 @@ def _build_user_content(image_path: str, prompt: str) -> list[dict]:
 def _call_sdk_once(image_path: str, prompt: str) -> dict:
     """发一次请求。仅 json.loads，不做业务校验。"""
     client = _get_client()
+    # 配置类错误在 try 之外抛，否则会被下面的 except 收口成 provider_error
+    model = resolve_model()
     content = _build_user_content(image_path, prompt)
     try:
         response = client.chat.completions.create(
-            model=os.getenv("AI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
+            model=model,
             messages=[{"role": "user", "content": content}],
             response_format={"type": "json_object"},
             temperature=0.0,  # 非思考模式才有效；0 让同一张图的结果尽量可复现
@@ -169,3 +206,4 @@ def call_vision_api(image_path: str, prompt: str) -> dict:
                 continue
             raise
     raise last_exc  # pragma: no cover - 循环必然 return 或 raise
+

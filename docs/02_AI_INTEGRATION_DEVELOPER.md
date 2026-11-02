@@ -87,7 +87,7 @@ pip install "openai>=3.0,<4.0" "pydantic>=2.6" "Pillow>=10.0" "python-dotenv>=1.
 | 供应商 | DeepSeek 官方 API（MVP 只此一家） |
 | OpenAI 兼容 base_url | `https://api.deepseek.com` |
 | 鉴权 | `Authorization: Bearer $AI_API_KEY`（Key 在 `https://platform.deepseek.com/api_keys` 申请） |
-| 模型名 | `deepseek-flash`（实际型号 DeepSeek-V4.1-Flash-1017） |
+| 模型名 | `deepseek-flash`（实际型号 DeepSeek-V4.1-Flash-1017）；配成 `deepseek-v4-pro` 会被 `resolve_model()` 直接拒绝，因为它不支持图片 |
 | 视觉能力 | `deepseek-flash` **支持**图片输入；`deepseek-v4-pro` **不支持**，别选错 |
 | 图片格式 | 后端按**文件内容**识别，支持 JPEG / PNG / GIF / WebP（MIME 只是参考） |
 | 结构化输出 | `response_format={"type": "json_object"}`，提示词里必须出现 "json" 字样并给示例 |
@@ -225,6 +225,7 @@ def analyze_food(image_path: str) -> dict: ...
 | 429 限流 | `AiProviderError` | `rate_limited` | 是，等 2 秒 1 次 | 同上 |
 | 500 / 503 供应商故障 | `AiProviderError` | `provider_5xx` | 是，1 次 | 同上 |
 | 400 / 422 请求参数错 | `AiProviderError` | `provider_4xx` | 否 | 同上（**这是你的 bug，先看文档**） |
+| `AI_MODEL` 配了不支持图片的型号 | `AiProviderError` | `model_not_supported` | 否 | 同上（改 `.env` 即可） |
 | 超时 | `AiProviderError` | `timeout` | 是，1 次 | 同上 |
 | 连不上网 | `AiProviderError` | `network` | 是，1 次 | 同上 |
 | 图片文件不见了 | `AiProviderError` | `file_missing` | 否 | 同上 |
@@ -233,6 +234,12 @@ def analyze_food(image_path: str) -> dict: ...
 | 被内容过滤 | `InvalidAiResponse` | `content_filtered` | 否 | 同上 |
 | JSON 缺字段/类型错 | `InvalidAiResponse` | `schema` | 否 | 同上 |
 | 图中无食物 | **不抛异常**，返回 `status: "error"` | — | — | — |
+
+> **代理环境注意**：本机开着系统代理时，断网往往先收到代理返回的 **502**，表现为 `provider_5xx` 而不是 `network`。
+> 两者处理一致（重试 1 次后上抛），但排查时别把它误判成"供应商挂了"——先看 `AI_BASE_URL` 能不能直连。
+>
+> **相对路径**：`image_path` 传 `uploads/...` 时，`resolve_image_path()` 先按当前目录找，找不到再按**仓库根**找；
+> 这样 Flask 从别的目录启动也不会变成 `file_missing`。
 
 ---
 
@@ -548,6 +555,12 @@ DEFAULT_TIMEOUT_SECONDS = 30.0
 MAX_OUTPUT_TOKENS = 2048
 RATE_LIMIT_BACKOFF_SECONDS = 2.0
 
+# 仓库根：app/ai/client.py -> app/ai -> app -> root
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# 明确不支持图片输入的型号，配到 /analyze 上要立刻报错（见 resolve_model）
+NON_VISION_MODELS = {"deepseek-v4-pro", "deepseek-reasoner"}
+
 # 只有这些 reason 允许重试（与文档 §6.2 一一对应）
 RETRYABLE_REASONS = {"timeout", "network", "rate_limited", "provider_5xx", "not_json"}
 
@@ -602,13 +615,38 @@ def _classify(exc: Exception) -> str:
     return "unknown"
 
 
+def resolve_model() -> str:
+    """读出要用的模型名，并挡掉明确不支持图片的型号。"""
+    model = (os.getenv("AI_MODEL") or DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    if model in NON_VISION_MODELS:
+        raise AiProviderError(
+            f"AI_MODEL={model!r} does not accept image input; "
+            f"use {DEFAULT_MODEL!r} for /analyze.",
+            details={"reason": "model_not_supported", "model": model},
+        )
+    return model
+
+
+def resolve_image_path(image_path: str) -> Path:
+    """相对路径先按当前目录找，找不到再按仓库根找。
+
+    Flask 可能从别的目录启动，`uploads/...` 这种仓库相对路径不能只看 CWD。
+    """
+    path = Path(image_path)
+    if path.is_absolute() or path.is_file():
+        return path
+    fallback = PROJECT_ROOT / path
+    return fallback if fallback.is_file() else path
+
+
 def _build_user_content(image_path: str, prompt: str) -> list[dict]:
     """图片必须是 base64 data URL，且只能放在 user 消息里。"""
-    path = Path(image_path)
+    path = resolve_image_path(image_path)
     if not path.is_file():
         raise AiProviderError(
             "Image file not found on disk.",
-            details={"reason": "file_missing", "path": str(path)},
+            details={"reason": "file_missing", "path": str(path),
+                     "cwd": str(Path.cwd())},
         )
     mime = _MIME_BY_SUFFIX.get(path.suffix.lower(), "image/jpeg")
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
@@ -621,10 +659,12 @@ def _build_user_content(image_path: str, prompt: str) -> list[dict]:
 def _call_sdk_once(image_path: str, prompt: str) -> dict:
     """发一次请求。仅 json.loads，不做业务校验。"""
     client = _get_client()
+    # 配置类错误在 try 之外抛，否则会被下面的 except 收口成 provider_error
+    model = resolve_model()
     content = _build_user_content(image_path, prompt)
     try:
         response = client.chat.completions.create(
-            model=os.getenv("AI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
+            model=model,
             messages=[{"role": "user", "content": content}],
             response_format={"type": "json_object"},
             temperature=0.0,          # 非思考模式才有效；0 让同一张图的结果尽量可复现
