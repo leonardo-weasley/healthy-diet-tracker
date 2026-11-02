@@ -1,0 +1,80 @@
+﻿### 手搓请求用（VS Code 装 "REST Client" 扩展后，点 Send Request）
+### 或 JetBrains 系列的内置 HTTP Client 也能直接用这个文件。
+### 前提：另一个窗口里跑着 `py -3.14 -u scripts/mock_analyze_server.py`
+
+@host = http://127.0.0.1:5001
+
+### 健康检查
+GET {{host}}/health
+
+### 分析：米饭
+POST {{host}}/api/v1/analyze
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="rice.jpeg"
+Content-Type: image/jpeg
+
+< ./tests/fixtures/rice.jpeg
+--WebAppBoundary
+Content-Disposition: form-data; name="meal_type"
+
+lunch
+--WebAppBoundary--
+
+### 分析：红烧肉（应命中 pork_belly_braised）
+POST {{host}}/api/v1/analyze
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="red-braised-pork.jpg"
+Content-Type: image/jpeg
+
+< ./tests/fixtures/red-braised-pork.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="meal_type"
+
+dinner
+--WebAppBoundary--
+
+### 错误路径：缺 meal_type → 400 INVALID_REQUEST
+POST {{host}}/api/v1/analyze
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="rice.jpeg"
+Content-Type: image/jpeg
+
+< ./tests/fixtures/rice.jpeg
+--WebAppBoundary--
+
+### 错误路径：非图片 → 415 UNSUPPORTED_MEDIA_TYPE
+POST {{host}}/api/v1/analyze
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="README.md"
+Content-Type: text/plain
+
+< ./README.md
+--WebAppBoundary
+Content-Disposition: form-data; name="meal_type"
+
+lunch
+--WebAppBoundary--
+
+### 负样本：灰图 → 200 + data.status="error"
+POST {{host}}/api/v1/analyze
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="image"; filename="placeholder.jpg"
+Content-Type: image/jpeg
+
+< ./tests/fixtures/placeholder.jpg
+--WebAppBoundary
+Content-Disposition: form-data; name="meal_type"
+
+snack
+--WebAppBoundary--
+

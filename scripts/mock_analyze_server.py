@@ -191,6 +191,14 @@ class Handler(BaseHTTPRequestHandler):
                          "data": {"image_path": target.relative_to(ROOT).as_posix(), **result}})
 
 
+class Server(ThreadingHTTPServer):
+    # Windows 上 SO_REUSEADDR 会允许两个进程同时绑同一端口，
+    # 请求可能落到一个已经僵死的旧进程上，表现为 RemoteDisconnected。
+    # 关掉它，端口被占时直接报错。
+    allow_reuse_address = False
+    daemon_threads = True
+
+
 def main() -> int:
     global PORT
     parser = argparse.ArgumentParser(description="契约模拟器：POST /api/v1/analyze")
@@ -198,10 +206,17 @@ def main() -> int:
     args = parser.parse_args()
     PORT = args.port
 
+    try:
+        server = Server(("127.0.0.1", PORT), Handler)
+    except OSError as exc:
+        print(f"[x] 端口 {PORT} 被占用（{exc}）。")
+        print("    先关掉旧进程，或换端口：py -3.14 -u scripts/mock_analyze_server.py --port 5002")
+        return 2
+
     print(f"模拟接口  : http://127.0.0.1:{PORT}/api/v1/analyze")
     print(f"浏览器表单: http://127.0.0.1:{PORT}/")
     print("Ctrl+C 停止")
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    server.serve_forever()
     return 0
 
 
