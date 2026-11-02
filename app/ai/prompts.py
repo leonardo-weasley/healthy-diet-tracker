@@ -5,6 +5,8 @@
 2. 必须明确"禁止计算营养"，否则模型一定附赠卡路里字段。
 """
 
+import re
+
 PROMPT_TEMPLATE = """You are a food recognition assistant for a calorie-tracking app.
 
 Analyze the meal photograph and identify every distinct food item that is visible.
@@ -51,17 +53,49 @@ Rules:
 - At most 20 items. If nothing edible is visible, return an empty "foods" list
   and one entry in "warnings".
 
-Standard food names (the ONLY allowed values of "food_name"):
+Standard food names (the ONLY allowed values of "food_name"), with their usual
+Chinese names for reference:
 {food_name_hints}
 """
 
-# 与 app/nutrition/food_database.json 的 food_name 保持一致（只同步名字，不同步营养数值）。
-# 成员3 改库时必须同步这里（同一个 PR 或紧随其后的 PR）；
-# tests/unit/test_ai_schema.py 里有一条防漂移测试会红给你看。
-FOOD_NAME_HINTS = """cooked_white_rice, brown_rice, noodles, steamed_bun, congee,
-grilled_chicken_breast, fried_chicken, pork_belly, beef_steak, salmon,
-tofu, egg_boiled, egg_fried, broccoli, bok_choy, tomato, cucumber, potato,
-sweet_potato, vegetable_oil, milk, yogurt, apple, banana, orange"""
+# 与 app/nutrition/food_database.json 的 food_name 一一对应（只同步名字，不同步营养数值）。
+# 来源：docs/03 §5.2 的 29 条初始数据。成员3 改库时必须同步这里（同一个 PR 或紧随其后的 PR）；
+# tests/unit/test_ai_schema.py 里有一条防漂移测试，库落地后会红给你看。
+# 附中文名是给模型做映射用的：红烧肉 -> pork_belly_braised，比只给英文 ID 命中率高得多。
+FOOD_NAME_HINTS = """- cooked_white_rice（白米饭）
+- brown_rice_cooked（糙米饭）
+- rice_chicken_bowl（鸡肉饭碗）
+- cooked_noodles（面条）
+- cooked_pasta（意面）
+- white_bread（白面包）
+- whole_wheat_bread（全麦面包）
+- oatmeal_cooked（燕麦粥）
+- grilled_chicken_breast（鸡胸肉）
+- beef_stir_fry（炒牛肉）
+- pork_belly_braised（红烧肉）
+- salmon_cooked（三文鱼）
+- shrimp_cooked（虾）
+- boiled_egg（水煮蛋）
+- fried_egg（煎蛋／炒蛋）
+- tofu_firm（北豆腐）
+- steamed_broccoli（西兰花）
+- boiled_potato（土豆）
+- french_fries（薯条）
+- lettuce（生菜）
+- tomato（番茄）
+- cucumber（黄瓜）
+- milk_whole（全脂牛奶）
+- plain_yogurt（原味酸奶）
+- banana（香蕉）
+- apple（苹果）
+- vegetable_soup（蔬菜汤）
+- milk_tea（奶茶）
+- cola（可乐）"""
+
+
+def food_name_hints() -> list[str]:
+    """FOOD_NAME_HINTS 里所有合法的 food_name（顺序即提示词里的顺序）。"""
+    return re.findall(r"^\s*-\s*([a-z0-9_]+)", FOOD_NAME_HINTS, re.M)
 
 
 def build_prompt() -> str:

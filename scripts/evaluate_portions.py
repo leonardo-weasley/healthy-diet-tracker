@@ -33,10 +33,10 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(ROOT / ".env")
 
 from app.ai.image_analyzer import analyze_food  # noqa: E402
-from app.ai.prompts import FOOD_NAME_HINTS  # noqa: E402
+from app.ai.prompts import food_name_hints  # noqa: E402
 from app.utils.errors import AiProviderError, InvalidAiResponse  # noqa: E402
 
-WHITELIST = {h.strip() for h in FOOD_NAME_HINTS.replace("\n", " ").split(",") if h.strip()}
+WHITELIST = set(food_name_hints())
 
 
 def load_photos() -> list[dict]:
@@ -199,5 +199,6 @@ def write_markdown(target: Path, rows: list[dict], stats: dict) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 

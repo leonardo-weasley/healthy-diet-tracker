@@ -415,20 +415,52 @@ Rules:
 - At most 20 items. If nothing edible is visible, return an empty "foods" list
   and one entry in "warnings".
 
-Standard food names (the ONLY allowed values of "food_name"):
+Standard food names (the ONLY allowed values of "food_name"), with their usual
+Chinese names for reference:
 {food_name_hints}
 """
 ```
 
-`FOOD_NAME_HINTS` 单独一个常量，由成员3 提供、与 `food_database.json` 的 `food_name` 同步（**只同步名字，不同步任何营养数值**）：
+`FOOD_NAME_HINTS` 单独一个常量，与 `food_database.json` 的 `food_name` 一一对应（**只同步名字，不同步任何营养数值**）。当前这 29 条来自 `03` 文档 §5.2 的初始数据：
 
 ```python
-# 与 app/nutrition/food_database.json 的 food_name 保持一致。
+# 与 app/nutrition/food_database.json 的 food_name 一一对应。
 # 成员3 改库时必须同步这里（同一个 PR 或紧随其后的 PR）。
-FOOD_NAME_HINTS = """cooked_white_rice, brown_rice, noodles, steamed_bun, congee,
-grilled_chicken_breast, fried_chicken, pork_belly, beef_steak, salmon,
-tofu, egg_boiled, egg_fried, broccoli, bok_choy, tomato, cucumber, potato,
-sweet_potato, vegetable_oil, milk, yogurt, apple, banana, orange"""
+# 附中文名是给模型做映射用的：红烧肉 -> pork_belly_braised，命中率远高于只给英文 ID。
+FOOD_NAME_HINTS = """- cooked_white_rice（白米饭）
+- brown_rice_cooked（糙米饭）
+- rice_chicken_bowl（鸡肉饭碗）
+- cooked_noodles（面条）
+- cooked_pasta（意面）
+- white_bread（白面包）
+- whole_wheat_bread（全麦面包）
+- oatmeal_cooked（燕麦粥）
+- grilled_chicken_breast（鸡胸肉）
+- beef_stir_fry（炒牛肉）
+- pork_belly_braised（红烧肉）
+- salmon_cooked（三文鱼）
+- shrimp_cooked（虾）
+- boiled_egg（水煮蛋）
+- fried_egg（煎蛋／炒蛋）
+- tofu_firm（北豆腐）
+- steamed_broccoli（西兰花）
+- boiled_potato（土豆）
+- french_fries（薯条）
+- lettuce（生菜）
+- tomato（番茄）
+- cucumber（黄瓜）
+- milk_whole（全脂牛奶）
+- plain_yogurt（原味酸奶）
+- banana（香蕉）
+- apple（苹果）
+- vegetable_soup（蔬菜汤）
+- milk_tea（奶茶）
+- cola（可乐）"""
+
+
+def food_name_hints() -> list[str]:
+    """解析出所有合法 food_name——测试和回归脚本共用这一份解析，别再各写一套。"""
+    return re.findall(r"^\s*-\s*([a-z0-9_]+)", FOOD_NAME_HINTS, re.M)
 
 
 def build_prompt() -> str:
@@ -447,15 +479,15 @@ def build_prompt() -> str:
 - **漂移防护**（写进 `tests/unit/test_ai_schema.py`，测试里跨模块读文件不算模块依赖）：
 
 ```python
-# 追加到 tests/unit/test_ai_schema.py（该文件已有 json / Path 的 import）
-from app.ai.prompts import FOOD_NAME_HINTS
+# 追加到 tests/unit/test_ai_schema.py
+from app.ai.prompts import food_name_hints
 
 
 def test_food_name_hints_exist_in_database():
     # food_database.json 的形状是 {"foods": [ {...}, ... ]}（见 03 文档 §5.1）
     db = json.loads(Path("app/nutrition/food_database.json").read_text(encoding="utf-8"))
     known = {row["food_name"] for row in db["foods"]}
-    hints = {h.strip() for h in FOOD_NAME_HINTS.replace("\n", " ").split(",") if h.strip()}
+    hints = set(food_name_hints())
     assert hints <= known, f"not in food_database.json: {sorted(hints - known)}"
 ```
 

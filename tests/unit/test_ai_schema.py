@@ -4,15 +4,17 @@
 """
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 import app.ai.image_analyzer as analyzer
-from app.ai.prompts import FOOD_NAME_HINTS, build_prompt
+from app.ai.prompts import FOOD_NAME_HINTS, build_prompt, food_name_hints
 from app.ai.schemas import AIAnalysis
 
+FOOD_NAME_RE = re.compile(r"[a-z0-9_]+")
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 MOCK = json.loads((FIXTURES / "mock_ai_result.json").read_text(encoding="utf-8"))
 MOCK_PARTIAL = json.loads((FIXTURES / "mock_ai_partial.json").read_text(encoding="utf-8"))
@@ -129,5 +131,17 @@ def test_food_name_hints_exist_in_database():
     if not db_path.is_file():
         pytest.skip("成员3 的 food_database.json 还没落地")
     known = {row["food_name"] for row in json.loads(db_path.read_text(encoding="utf-8"))["foods"]}
-    hints = {h.strip() for h in FOOD_NAME_HINTS.replace("\n", " ").split(",") if h.strip()}
+    hints = set(food_name_hints())
     assert hints <= known, f"not in food_database.json: {sorted(hints - known)}"
+
+
+def test_hints_are_unique_and_snake_case():
+    names = food_name_hints()
+    assert len(names) == len(set(names)), "FOOD_NAME_HINTS 里有重复"
+    assert all(FOOD_NAME_RE.fullmatch(n) for n in names), "有不合法的 food_name"
+
+
+def test_hint_count_matches_doc():
+    # docs/03 §5.2 目前是 29 条；库变了这里和 FOOD_NAME_HINTS 要一起改
+    assert len(food_name_hints()) == 29
+
