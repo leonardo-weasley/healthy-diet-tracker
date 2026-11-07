@@ -393,3 +393,12 @@ Thumbs.db
 ## 14. 许可证与致谢
 
 课程项目用途。营养参考数据来自 [USDA FoodData Central](https://fdc.nal.usda.gov/)（公有领域），AI 能力由 Google Gemini API 提供。
+
+
+## 成员 1 后端联调入口
+
+后端应用工厂、6 个 API、上传与错误处理已接入。默认 BACKEND_MODE=demo，使用固定 AI、两条营养测试数据和内存仓储；记录重启后清空。
+
+Windows 完整解压后可双击 start.cmd；新电脑需要先安装 Python 3.11+ 并勾选 Add python.exe to PATH，首次安装依赖需联网。也可按本 README 的虚拟环境步骤安装依赖后执行 python run.py。
+
+后端说明见 docs/BACKEND_HANDOFF.md。真实模式仍需要成员 3 的营养模块和成员 5 的数据库模块；成员 2 已有的 AI 代码保持原样。

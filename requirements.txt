@@ -6,3 +6,4 @@ pydantic>=2.6
 Pillow>=10.0
 python-dotenv>=1.0
 pytest>=8.0
+tzdata>=2024.1

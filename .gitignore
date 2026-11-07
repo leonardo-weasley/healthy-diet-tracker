@@ -25,3 +25,5 @@ tests/fixtures/*.jpg
 tests/fixtures/*.jpeg
 !tests/fixtures/placeholder.jpg
 tests/fixtures/photos/
+.coverage
+htmlcov/
