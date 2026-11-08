@@ -1,0 +1,40 @@
+{
+  "_comment": "照片清单：scripts/ai_regression.py 会读它；清单外的图片也会被自动扫描到（note 记为 -），不会漏测。",
+  "photos": [
+    {
+      "file": "first-real-food.jpeg",
+      "dish": "红烧肥肠（大肠）",
+      "note": "中餐；不在白名单，预期全 null"
+    },
+    {
+      "file": "red-braised-pork.jpg",
+      "dish": "红烧肉",
+      "note": "白名单有 pork_belly，应能命中"
+    },
+    {
+      "file": "rice.jpeg",
+      "dish": "白米饭",
+      "note": "白名单有 cooked_white_rice，应能命中"
+    },
+    {
+      "file": "scrambled-egg-with-tomatoes.jpg",
+      "dish": "番茄炒蛋",
+      "note": "白名单有 egg_fried / tomato，看它拆不拆"
+    },
+    {
+      "file": "rice steamed-fish stir-fried-greens.jpeg",
+      "dish": "米饭 + 清蒸鱼 + 炒青菜",
+      "note": "多菜品组合；鱼与青菜大概率命中不了"
+    },
+    {
+      "file": "go-believe.jpeg",
+      "dish": "未标注",
+      "note": "待补充描述"
+    },
+    {
+      "file": "placeholder.jpg",
+      "dish": "纯灰图（负样本）",
+      "note": "必须返回 status=error、foods=[]"
+    }
+  ]
+}
