@@ -1,1 +1,1 @@
-"""Shared helpers (errors, time)."""
+"""通用工具包（成员1 主责）。"""

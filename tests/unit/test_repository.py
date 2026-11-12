@@ -191,14 +191,15 @@ def test_get_meals_filters_dates_and_orders_newest_first(
 
 
 def test_d9_seed_foods_is_idempotent(app):
-    from scripts.seed_foods import seed_foods
+    from scripts.seed_foods import load_payload, seed_foods
 
+    expected = len(load_payload()["foods"])
     first = seed_foods()
     second = seed_foods()
 
-    assert first == 3
+    assert first == expected
     assert second == 0
-    assert db.session.query(Food).count() == 3
+    assert db.session.query(Food).count() == expected
 
 
 def test_items_count_must_be_between_one_and_twenty(seeded_db, sample_meal_payload):

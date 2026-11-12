@@ -1,108 +1,404 @@
-# 膳食记录后端 — 数据库与测试层（成员 5）
+# Healthy Diet Tracker · 健康饮食追踪器
 
-对应 `05_DATABASE_AND_TESTING_DEVELOPER.md`。本目录已完成：
+一个在**本地浏览器**运行的个人饮食追踪应用：上传一张餐食照片 → 多模态 AI 识别食物并估算份量 → **我们自己的 Python 算法**查本地营养库计算卡路里与宏量营养素 → 用户确认/修正 → 存入本地 SQLite → 仪表盘查看每日与历史统计。
 
-- 三张表：`food`、`meal`、`meal_item`（CHECK / UNIQUE / FK / 索引齐全）；
-- 五个仓储函数：`save_meal` / `get_meal` / `get_meals` / `delete_meal` /
-  `get_daily_summary`，外加分页辅助 `get_meal_page`；
-- `scripts/init_db.py`、`scripts/seed_foods.py`（均可重复执行）；
-- 测试体系：**31 条**用例，`pytest -q` 约 **0.4 秒**，不联网、不需要 Key、
-  不读 `.env`。
+- 团队：5 名大学生开发者，6 周
+- 形态：本地 Web 应用（`http://127.0.0.1:5000`），单机单用户
+- 用途：课程项目 / 个人记录，**所有营养数值都是估算值，不得当作医学营养测量**
 
-## 快速开始
+---
 
-```powershell
+## 1. 项目简介
+
+### 1.1 要解决的问题
+
+记录饮食很麻烦：手查食物重量、手翻营养表、手动累加。本应用把最费劲的三步交给程序：
+
+1. **识别**——AI 看照片说"这是米饭和鸡胸肉，大概 180 g 和 120 g"。
+2. **计算**——我们用受控的本地营养库做确定性计算，结果可复现、可单元测试。
+3. **累计**——存库、按天汇总、画图。
+
+### 1.2 核心架构原则
+
+> **AI 只负责"是什么、大概多重"，绝不负责"多少卡路里"。**
+
+所有营养计算都由我们自己的纯函数完成。这样做的原因：
+
+| 原因 | 说明 |
+|---|---|
+| 可复现 | 同一输入永远同一输出，测试能精确断言到 0.01 |
+| 可解释 | 答辩时能说清"234 kcal = 180 / 100 × 130" |
+| 省钱 | 营养计算不发一次 API 请求 |
+| 可替换 | 换 AI 供应商不影响营养模块 |
+
+---
+
+## 2. 主要功能
+
+| 功能 | 说明 | MVP 级别 |
+|---|---|---|
+| 餐食照片上传 | JPEG/PNG/WebP，≤ 8 MB，带预览与餐型选择 | 必须 |
+| AI 食物识别 | 返回结构化 JSON：食物名、估算重量、置信度 | 必须 |
+| 营养计算 | 查本地 20–30 条食物库，算卡路里/蛋白/碳水/脂肪 | 必须 |
+| 结果人工修正 | 保存前可改食物名与重量，后端**重新计算** | 必须 |
+| 餐食日记 | 保存到 SQLite，含营养快照 | 必须 |
+| 每日仪表盘 | 今日卡路里、目标进度、宏量营养素、最近餐食 | 必须 |
+| 历史记录 | 按日期/区间查询、查看明细、删除 | 必须 |
+| 图表 | Chart.js：宏量营养素环形图、卡路里进度 | 必须 |
+| 未知食物处理 | 提示手动选择/录入，不静默填默认值 | 必须 |
+| 自定义食物条目 | 用户新增食物到本地库 | 选做（Level 2） |
+| 每周趋势图 | 复用区间查询，前端聚合 | 选做（Level 2） |
+| 份量准确性实验 | 30 张照片对比实际称重，算 MAPE | 选做（Level 3） |
+
+**明确不做**：注册登录、社交分享、移动 App、可穿戴同步、个性化营养建议、微服务、Docker。
+
+---
+
+## 3. 技术栈
+
+| 层 | 技术 | 版本 | 用途 |
+|---|---|---|---|
+| 语言 | Python | 3.11+ | 后端与营养计算 |
+| Web 框架 | Flask | 3.x | 路由、模板渲染、JSON 接口 |
+| 前端 | HTML / CSS / 原生 JavaScript | — | 页面与交互，**不用框架** |
+| 图表 | Chart.js | 4.x | 仪表盘可视化（CDN 引入） |
+| AI | Google Gemini API（`google-genai` SDK） | 最新 | 图像理解 + 强制 JSON 输出 |
+| 校验 | Pydantic | v2 | 模块边界数据校验 |
+| 数据库 | SQLite | 3 | 本地持久化，单文件 |
+| ORM | SQLAlchemy / Flask-SQLAlchemy | 2.x / 3.x | 模型与关系 |
+| 测试 | pytest | 8.x | 单元/集成/端到端 |
+| 配置 | python-dotenv | 1.x | 从 `.env` 读取密钥 |
+| 协作 | Git + GitHub | — | 分支、PR、Review |
+
+**不引入**：React、Vue、Node.js、Docker、Redis、Celery、消息队列、Alembic、前端构建工具。
+
+---
+
+## 4. 架构概览
+
+```
+浏览器（HTML/CSS/JS + Chart.js）
+        │ HTTP + JSON / multipart
+        ▼
+Flask 路由层  routes/          ← 很薄：解析 → 调服务 → 序列化
+        │ Python 函数调用
+        ▼
+服务层  services/meal_service.py   ← 编排、校验、事务边界
+   │            │            │
+   ▼            ▼            ▼
+AI 模块      营养模块      数据库模块
+ai/          nutrition/    database/
+   │            │            │
+   ▼            ▼            ▼
+Gemini API   本地 JSON 营养库   SQLite
+```
+
+四条硬边界（违反即架构事故）：
+
+1. **AI 不算营养**：`app/ai/**` 里不许出现 `calories`、`protein` 等字段的计算。
+2. **营养不联网**：`app/nutrition/**` 里不许 import `requests` / `google.*` / `openai`。
+3. **前端不碰数据层**：`app/static/**` 里只允许请求 `/api/v1/*`。
+4. **供应商只在一处**：只有 `app/ai/client.py` 可以 import AI SDK。
+
+完整架构、数据流图、契约定义见 [`docs/00_MAIN_TECHNICAL_ROUTE.md`](docs/00_MAIN_TECHNICAL_ROUTE.md)。
+
+---
+
+## 5. 文档导航
+
+| 文件 | 谁必读 | 内容 |
+|---|---|---|
+| [`docs/00_MAIN_TECHNICAL_ROUTE.md`](docs/00_MAIN_TECHNICAL_ROUTE.md) | **全员** | 权威技术规范：架构、契约、6 个端点、7 个函数签名、错误码、Git 流程、里程碑、验收标准 |
+| [`docs/01_BACKEND_DEVELOPER.md`](docs/01_BACKEND_DEVELOPER.md) | 成员1 | Flask 应用工厂、6 个路由、服务编排、上传校验、错误翻译 |
+| [`docs/02_AI_INTEGRATION_DEVELOPER.md`](docs/02_AI_INTEGRATION_DEVELOPER.md) | 成员2 | 供应商接入、提示词、JSON 输出、Pydantic 校验、超时重试、mock |
+| [`docs/03_NUTRITION_ENGINE_DEVELOPER.md`](docs/03_NUTRITION_ENGINE_DEVELOPER.md) | 成员3 | 食物库格式与 24 条初始数据、匹配策略、计算公式、取整、单测 |
+| [`docs/04_FRONTEND_DEVELOPER.md`](docs/04_FRONTEND_DEVELOPER.md) | 成员4 | 四个页面、元素 id、Fetch 封装、加载/错误/空状态、Chart.js |
+| [`docs/05_DATABASE_AND_TESTING_DEVELOPER.md`](docs/05_DATABASE_AND_TESTING_DEVELOPER.md) | 成员5 | 三张表、SQLAlchemy 模型、仓储函数、聚合查询、测试体系 |
+
+**推荐的阅读顺序**
+
+1. 所有人：本 README §1–§4 → `00_MAIN_TECHNICAL_ROUTE.md`（全文，约 40 分钟）。
+2. 各人再读自己那份；只需预览直接上下游那一节（文档里已标注）。
+3. 动代码前，确保能回答："我这个模块的输入是什么、输出是什么、错了返回什么"。
+
+---
+
+## 6. 环境要求
+
+| 项 | 要求 |
+|---|---|
+| 操作系统 | Windows 10/11、macOS 12+、或 Linux（团队用 Windows 演示） |
+| Python | **3.11 或更高**（`python --version` 确认） |
+| pip | 随 Python 安装 |
+| Git | 2.30+ |
+| 编辑器 | VS Code（推荐，装 Python 扩展） |
+| 浏览器 | Chrome / Edge 最新版 |
+| 网络 | 只在调用 AI 时需要；其余功能可离线 |
+| Gemini API Key | 免费额度足够，从 Google AI Studio 获取 |
+
+检查环境：
+
+```bash
+python --version     # 需 ≥ 3.11
+git --version
+```
+
+---
+
+## 7. 快速开始
+
+### 7.1 克隆并创建虚拟环境
+
+```bash
+git clone https://github.com/YOUR-TEAM/healthy-diet-tracker.git
+cd healthy-diet-tracker
+
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```
+
+激活虚拟环境：
+
+```bash
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+# Windows (CMD)
+.venv\Scripts\activate.bat
+# macOS / Linux
+source .venv/bin/activate
+```
+
+> 若 PowerShell 报 "执行策略阻止脚本"，先运行：
+> `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+
+### 7.2 安装依赖
+
+```bash
 pip install -r requirements.txt
-
-python scripts\init_db.py
-python scripts\seed_foods.py     # 再跑一次应输出 inserted 0
-pytest -q
 ```
 
-本工作区已经装好依赖（`.venv/`，不入库），可直接：
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-```
-
-## 目录
+`requirements.txt` 内容：
 
 ```text
-app/
-  __init__.py              # create_app（成员 1 的占位实现）
-  extensions.py            # db + SQLite PRAGMA foreign_keys=ON
-  utils/
-    errors.py              # 11 个错误码与 HTTP 状态
-    timeutil.py            # UTC -> 本地 ISO（默认 Asia/Shanghai）
-  database/
-    models.py              # Food / Meal / MealItem
-    repository.py          # 五个仓储函数（唯一直接操作 db.session 的地方）
-  nutrition/
-    food_database.json     # 成员 3 数据的占位版本（3 条）
-    calculator.py          # 按克数换算 + 未匹配食物 warnings
-  ai/service.py            # 成员 2 的 AI 边界（占位）
-  services/meal_service.py # analyze -> nutrition -> 草稿餐食
-  api/                     # 成员 1 路由的参考实现（供集成/E2E 测试）
-scripts/
-  init_db.py               # create_all
-  seed_foods.py            # 幂等导入 JSON
-tests/
-  conftest.py              # app / client / seeded_db / mock 数据夹具
-  fixtures/                # mock AI JSON、样例 PNG
-  unit/test_repository.py  # D1-D9 + 分页/日期过滤
-  integration/test_pipeline.py
-  integration/test_api_errors.py
-  e2e/test_workflow.py
-docs/TEST_REPORT.md        # 通过数、错误码覆盖表、已知缺口
+Flask>=3.0
+Flask-SQLAlchemy>=3.1
+SQLAlchemy>=2.0
+pydantic>=2.6
+python-dotenv>=1.0
+Pillow>=10.0
+google-genai>=0.3
+pytest>=8.0
 ```
 
-## 关键规则（验收点）
+### 7.3 配置环境变量
 
-| 规则 | 实现 / 证明 |
-|---|---|
-| 删餐食 → 明细消失 | `ON DELETE CASCADE` + ORM cascade；D2 用 Core DELETE 绕过 ORM 验证 |
-| 删参考食物 → 历史明细保留，`food_id` 变 NULL | `ON DELETE SET NULL`；D3 |
-| 改食物库数值 → 历史卡路里不变 | `meal_item` 存快照；I3 |
-| SQLite 外键真的打开 | `app/extensions.py` 的 connect 事件；D2 断言 `PRAGMA foreign_keys == 1` |
-| 一次事务写完餐食 | `save_meal`：`flush()` 拿 id → 写入全部明细 → 一次 `commit()`，异常回滚 |
-| 空日期看板不返回 `None` | `COALESCE(SUM(...), 0)`；D6 |
-| 种子幂等 | 已存在 `food_name` 跳过；D9 |
-| 时区 | `meal_datetime_utc` 存 UTC，读取时转 `APP_TIMEZONE`（默认 `Asia/Shanghai`） |
+复制模板并填自己的 Key：
 
-## 契约假设与交接
+```bash
+# Windows
+copy .env.example .env
+# macOS / Linux
+cp .env.example .env
+```
 
-本仓库只有 `05` 这一份文档，`00/01/02` 未随附，因此下面这些**他人文件**
-目前是能通过全部测试的参考实现，成员 1/2/3 可以用自己的实现替换，但要保留
-同名函数作为接缝：
+`.env`（**绝不提交**）：
 
-| 文件 | 归属 | 当前形态 / 接缝 |
+```dotenv
+FLASK_ENV=development
+SECRET_KEY=change-me-locally
+AI_PROVIDER=gemini
+AI_API_KEY=你的真实key
+AI_MODEL=gemini-2.0-flash
+AI_TIMEOUT_SECONDS=30
+DATABASE_URL=sqlite:///instance/diet_tracker.db
+APP_TIMEZONE=Asia/Shanghai
+```
+
+> `AI_MODEL` 的具体型号会随供应商更新，以官方文档为准。没有 Key 也能起服务，只是上传分析会返回 `AI_PROVIDER_ERROR`——这方便前端先开发。
+
+### 7.4 初始化数据库与食物库
+
+```bash
+python scripts/init_db.py      # 建三张表
+python scripts/seed_foods.py   # 导入 20–30 条食物（幂等，可重复跑）
+```
+
+### 7.5 运行
+
+```bash
+python run.py
+```
+
+浏览器打开 <http://127.0.0.1:5000>。
+
+### 7.6 跑测试
+
+```bash
+pytest -v                       # 全部
+pytest tests/unit -v            # 只跑单元测试
+pytest -k calculator            # 只跑名字含 calculator 的用例
+```
+
+预期：不需要真实 API Key、不需要网络，10 秒内全绿。
+
+---
+
+## 8. 仓库结构
+
+```text
+healthy-diet-tracker/
+├── run.py                      # 启动入口
+├── requirements.txt
+├── .env.example                # 变量清单（无真实密钥）
+├── .gitignore
+├── README.md                   # 本文件
+│
+├── docs/                       # 全部规范文档（见 §5）
+│
+├── app/
+│   ├── __init__.py             # create_app()
+│   ├── config.py               # 配置
+│   ├── extensions.py           # db = SQLAlchemy()
+│   ├── routes/                 # HTTP 路由（成员1）
+│   ├── services/               # 服务编排（成员1）
+│   ├── ai/                     # AI 识别（成员2）
+│   ├── nutrition/              # 营养引擎（成员3）
+│   ├── database/               # 模型与仓储（成员5）
+│   ├── utils/                  # errors / images / timeutil（成员1）
+│   ├── templates/              # 5 个页面模板（成员4）
+│   └── static/                 # CSS + JS（成员4）
+│
+├── tests/
+│   ├── conftest.py             # 夹具
+│   ├── fixtures/               # mock JSON、样例照片
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+│
+├── scripts/
+│   ├── init_db.py
+│   ├── seed_foods.py
+│   └── evaluate_portions.py    # 选做：MAPE 实验
+│
+├── instance/                   # SQLite 文件（Git 忽略）
+└── uploads/                    # 上传图片（Git 忽略）
+```
+
+每个文件的归属见 `00_MAIN_TECHNICAL_ROUTE.md` §C.1。**一个文件只能有一个所有者**，其他人通过接口调用。
+
+---
+
+## 9. 团队分工
+
+| 成员 | 角色 | 主要负责 | 关键交付物 |
+|---|---|---|---|
+| 1 | 团队负责人 / 后端集成 | `app/routes/**`、`app/services/**`、`app/__init__.py`、`app/utils/**` | 一个能跑的 Flask 应用 + 六个接口 + 统一错误处理 |
+| 2 | AI 集成 | `app/ai/**` | 照片 → 契约 A 的 JSON，失败能降级 |
+| 3 | 营养引擎 | `app/nutrition/**` | 20+ 食物库 + 计算模块 + 单测 |
+| 4 | 前端 | `app/templates/**`、`app/static/**` | 四个页面 + 图表 + 四态处理 |
+| 5 | 数据库与测试 | `app/database/**`、`app/extensions.py`、`scripts/`、`tests/conftest.py` | 三张表 + 仓储函数 + 测试体系 |
+
+每周目标见 `00_MAIN_TECHNICAL_ROUTE.md` §J。
+
+---
+
+## 10. 六周时间线（概要）
+
+| 周 | 目标 | 验收 |
 |---|---|---|
-| `app/__init__.py` | 成员 1 | `create_app(config=None)`；`TESTING` 时用 `sqlite:///:memory:` |
-| `app/api/routes.py` | 成员 1 | `POST /analyze`、`POST/GET/DELETE /meals`、`GET /dashboard/daily` |
-| `app/ai/service.py` | 成员 2 | `analyze_food(image_bytes, content_type) -> dict` |
-| `app/nutrition/calculator.py` | 成员 3 | `build_meal_items(detected) -> (items, warnings)`，按 `per_100g * g / 100` 换算 |
+| 1 | 架构、契约、目录、骨架、能渲染的页面 | 五人都能 clone 并跑起来 |
+| 2 | 三个模块各自独立可测 | 单测全绿，AI 对真实照片出 JSON |
+| 3 | AI → 营养 → 数据库 串联 | 集成测试通过 |
+| 4 | 浏览器完整流程 | 不写脚本也能用 |
+| 5 | 看板、错误处理、30 张照片测试 | 错误码全覆盖 |
+| 6 | 冻结功能、修 bug、文档、演示 | 3 分钟演示不翻车 |
 
-错误信封统一为：
+---
 
-```json
-{ "error": { "code": "MEAL_NOT_FOUND", "message": "...", "details": {} } }
+## 11. 协作约定
+
+### 11.1 分支
+
+| 分支 | 用途 |
+|---|---|
+| `main` | 稳定可演示版，只接受来自 `develop` 的 PR |
+| `develop` | 集成，随时可运行 |
+| `feature/<模块>` | 个人开发分支 |
+
+### 11.2 提交流程
+
+```bash
+git checkout develop && git pull
+git checkout -b feature/ai
+# 写代码
+git add app/ai tests/unit/test_ai_schema.py
+git commit -m "feat(ai): add image analyzer with schema validation"
+git push -u origin feature/ai
+# 开 PR → develop，找 1 人 Review
 ```
 
-状态码：`INVALID_REQUEST` / `INVALID_IMAGE` / `INVALID_WEIGHT` 400，
-`MEAL_NOT_FOUND` 404，`IMAGE_TOO_LARGE` 413，`UNSUPPORTED_MEDIA_TYPE` 415，
-`FOOD_NOT_FOUND` 422，`AI_PROVIDER_ERROR` / `INVALID_AI_RESPONSE` 502，
-`DATABASE_ERROR` / `INTERNAL_ERROR` 500。
+提交前缀：`feat` / `fix` / `docs` / `test` / `refactor` / `style` / `chore`。
 
-`save_meal()` 只接受 `05` §5.2 的字段；未知 `food_name` 会存
-`food_id = NULL` 且不报错，`totals` 永远由明细快照求和，不信任客户端。
+### 11.3 五条纪律
 
-## 测试说明
+1. **不许直接推 `main`**，也不许直接推 `develop`。
+2. **不许把红着测试的代码合进 `develop`**。
+3. **不许提交** `.env`、`instance/*.db`、`uploads/*`、真实餐食照片。
+4. **不许单方面改契约**：改字段名 = 改 `00_MAIN_TECHNICAL_ROUTE.md` + 全组通知。
+5. **不许在 PR 里顺手重构别人的模块**。
 
-- 每条测试使用独立的内存库（`sqlite:///:memory:` + `StaticPool`），互不污染。
-- AI 一律用 `monkeypatch` 打桩：`tests/fixtures/mock_ai_result*.json`。
-- 浮点断言使用 `pytest.approx`。
-- 单独运行某个测试也通过，例如：
-  `pytest tests/unit/test_repository.py::test_d2_deleting_meal_cascades_at_database_level -q`
-- 详细覆盖表见 [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md)。
+### 11.4 `.gitignore` 必须包含
+
+```gitignore
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+instance/*.db
+uploads/*
+!uploads/.gitkeep
+instance/.gitkeep
+.DS_Store
+Thumbs.db
+```
+
+---
+
+## 12. 常见问题
+
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| `ModuleNotFoundError: flask` | 虚拟环境没激活 | 重新激活 `.venv` 后 `pip install -r requirements.txt` |
+| 上传后提示 "AI 服务不可用" | 没配 `AI_API_KEY`，或额度用尽 | 检查 `.env`；换 Key 或稍后重试 |
+| 端口 5000 被占用 | 另一个进程在用 | 改 `run.py` 里的 `port=5001`，或用 `Get-NetTCPConnection -LocalPort 5000` 找进程 |
+| 数据库表不存在 | 没跑初始化 | `python scripts/init_db.py && python scripts/seed_foods.py` |
+| 保存后卡路里没变 | 后端没重算，或前端算了假数 | 见 `01_BACKEND_DEVELOPER.md` §7；前端禁止提交营养字段 |
+| 历史页显示不了中文 | 响应头缺 charset | 确认 `Content-Type: application/json; charset=utf-8` |
+| `pytest` 报找不到模块 | 没在仓库根目录运行 | 在仓库根目录执行 `pytest` |
+
+---
+
+## 13. 免责声明
+
+本项目所有营养数值均为**基于公开数据的估算**：
+
+- 食物重量由 AI 从单张照片估算，误差可达 ±20% 以上；
+- 营养值来自本地参考库，不能反映具体烹饪用油、配料与品牌差异；
+- 不得用于医疗、疾病管理或专业营养干预。
+
+界面上必须常驻一句提示：**"营养数据为估算值，仅供参考。"**
+
+---
+
+## 14. 许可证与致谢
+
+课程项目用途。营养参考数据来自 [USDA FoodData Central](https://fdc.nal.usda.gov/)（公有领域），AI 能力由 Google Gemini API 提供。
+
+
+## 成员 1 后端联调入口
+
+后端应用工厂、6 个 API、上传与错误处理已接入。默认 BACKEND_MODE=demo，使用固定 AI、两条营养测试数据和内存仓储；记录重启后清空。
+
+Windows 完整解压后可双击 start.cmd；新电脑需要先安装 Python 3.11+ 并勾选 Add python.exe to PATH，首次安装依赖需联网。也可按本 README 的虚拟环境步骤安装依赖后执行 python run.py。
+
+后端说明见 docs/BACKEND_HANDOFF.md。真实模式仍需要成员 3 的营养模块和成员 5 的数据库模块；成员 2 已有的 AI 代码保持原样。

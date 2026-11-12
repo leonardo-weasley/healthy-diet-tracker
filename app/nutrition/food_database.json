@@ -1,38 +1,377 @@
 {
-  "version": 1,
-  "note": "Placeholder data for the database/tests layer. Member 3 replaces this file with the real nutrition database; field names must stay the same.",
+  "schema_version": "1.0",
+  "source_note": "Values per 100 g edible portion. USDA FoodData Central, accessed 2026-11. 2026-11-06 完成首次抽查：12 条（米饭/鸡胸/意面/薯条/水煮蛋/全脂奶/面条/香蕉/北豆腐/燕麦粥/白面包/三文鱼）已与 USDA 原始记录比对，差异均 <5%，is_verified 置 1；is_verified=0 表示尚未逐条核对，其中 source=local 的条目为本地估算值，无 USDA 对应记录。",
   "foods": [
     {
       "food_name": "cooked_white_rice",
-      "display_name": "White rice",
-      "calories_per_100g": 130.0,
+      "display_name": "白米饭（熟）",
+      "calories_per_100g": 130,
       "protein_per_100g": 2.7,
       "carbs_per_100g": 28.2,
       "fat_per_100g": 0.3,
       "source": "USDA",
-      "aliases": ["white rice", "rice", "米饭"],
+      "aliases": [
+        "white_rice",
+        "rice",
+        "steamed_rice"
+      ],
+      "is_verified": 1
+    },
+    {
+      "food_name": "brown_rice_cooked",
+      "display_name": "糙米饭（熟）",
+      "calories_per_100g": 123,
+      "protein_per_100g": 2.7,
+      "carbs_per_100g": 25.6,
+      "fat_per_100g": 1.0,
+      "source": "USDA",
+      "aliases": [
+        "brown_rice"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "rice_chicken_bowl",
+      "display_name": "鸡肉饭碗",
+      "calories_per_100g": 180,
+      "protein_per_100g": 8.0,
+      "carbs_per_100g": 22.0,
+      "fat_per_100g": 6.0,
+      "source": "local",
+      "aliases": [],
+      "is_verified": 0
+    },
+    {
+      "food_name": "cooked_noodles",
+      "display_name": "面条（熟）",
+      "calories_per_100g": 138,
+      "protein_per_100g": 4.5,
+      "carbs_per_100g": 25.0,
+      "fat_per_100g": 2.1,
+      "source": "local",
+      "aliases": [
+        "noodles",
+        "noodle"
+      ],
+      "is_verified": 1
+    },
+    {
+      "food_name": "cooked_pasta",
+      "display_name": "意面（熟）",
+      "calories_per_100g": 158,
+      "protein_per_100g": 5.8,
+      "carbs_per_100g": 30.9,
+      "fat_per_100g": 0.9,
+      "source": "USDA",
+      "aliases": [
+        "pasta"
+      ],
+      "is_verified": 1
+    },
+    {
+      "food_name": "white_bread",
+      "display_name": "白面包",
+      "calories_per_100g": 265,
+      "protein_per_100g": 9.0,
+      "carbs_per_100g": 49.0,
+      "fat_per_100g": 3.2,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 1
+    },
+    {
+      "food_name": "whole_wheat_bread",
+      "display_name": "全麦面包",
+      "calories_per_100g": 247,
+      "protein_per_100g": 13.0,
+      "carbs_per_100g": 41.0,
+      "fat_per_100g": 3.4,
+      "source": "USDA",
+      "aliases": [
+        "wheat_bread"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "oatmeal_cooked",
+      "display_name": "燕麦粥（熟）",
+      "calories_per_100g": 71,
+      "protein_per_100g": 2.5,
+      "carbs_per_100g": 12.0,
+      "fat_per_100g": 1.5,
+      "source": "USDA",
+      "aliases": [
+        "oatmeal",
+        "porridge"
+      ],
       "is_verified": 1
     },
     {
       "food_name": "grilled_chicken_breast",
-      "display_name": "Grilled chicken breast",
-      "calories_per_100g": 165.0,
+      "display_name": "烤鸡胸肉",
+      "calories_per_100g": 165,
       "protein_per_100g": 31.0,
       "carbs_per_100g": 0.0,
       "fat_per_100g": 3.6,
       "source": "USDA",
-      "aliases": ["chicken breast", "鸡胸肉"],
+      "aliases": [
+        "chicken_breast",
+        "grilled_chicken"
+      ],
+      "is_verified": 1
+    },
+    {
+      "food_name": "beef_stir_fry",
+      "display_name": "炒牛肉",
+      "calories_per_100g": 250,
+      "protein_per_100g": 26.0,
+      "carbs_per_100g": 3.0,
+      "fat_per_100g": 15.0,
+      "source": "local",
+      "aliases": [
+        "stir_fried_beef"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "pork_belly_braised",
+      "display_name": "红烧肉",
+      "calories_per_100g": 518,
+      "protein_per_100g": 9.0,
+      "carbs_per_100g": 3.0,
+      "fat_per_100g": 53.0,
+      "source": "local",
+      "aliases": [
+        "braised_pork",
+        "hong_shao_rou"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "salmon_cooked",
+      "display_name": "三文鱼（熟）",
+      "calories_per_100g": 206,
+      "protein_per_100g": 22.1,
+      "carbs_per_100g": 0.0,
+      "fat_per_100g": 12.4,
+      "source": "USDA",
+      "aliases": [
+        "salmon"
+      ],
+      "is_verified": 1
+    },
+    {
+      "food_name": "shrimp_cooked",
+      "display_name": "虾（熟）",
+      "calories_per_100g": 99,
+      "protein_per_100g": 24.0,
+      "carbs_per_100g": 0.2,
+      "fat_per_100g": 0.3,
+      "source": "USDA",
+      "aliases": [
+        "shrimp",
+        "prawn"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "boiled_egg",
+      "display_name": "水煮蛋",
+      "calories_per_100g": 155,
+      "protein_per_100g": 12.6,
+      "carbs_per_100g": 1.1,
+      "fat_per_100g": 10.6,
+      "source": "USDA",
+      "aliases": [
+        "egg",
+        "hard_boiled_egg"
+      ],
+      "is_verified": 1
+    },
+    {
+      "food_name": "fried_egg",
+      "display_name": "煎蛋",
+      "calories_per_100g": 196,
+      "protein_per_100g": 13.6,
+      "carbs_per_100g": 0.8,
+      "fat_per_100g": 14.8,
+      "source": "USDA",
+      "aliases": [
+        "pan_fried_egg"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "tofu_firm",
+      "display_name": "北豆腐",
+      "calories_per_100g": 144,
+      "protein_per_100g": 17.3,
+      "carbs_per_100g": 2.8,
+      "fat_per_100g": 8.7,
+      "source": "USDA",
+      "aliases": [
+        "tofu"
+      ],
       "is_verified": 1
     },
     {
       "food_name": "steamed_broccoli",
-      "display_name": "Steamed broccoli",
-      "calories_per_100g": 34.0,
-      "protein_per_100g": 2.8,
-      "carbs_per_100g": 6.6,
+      "display_name": "蒸西兰花",
+      "calories_per_100g": 35,
+      "protein_per_100g": 2.4,
+      "carbs_per_100g": 7.2,
       "fat_per_100g": 0.4,
       "source": "USDA",
-      "aliases": ["broccoli", "西兰花"],
+      "aliases": [
+        "broccoli"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "boiled_potato",
+      "display_name": "水煮土豆",
+      "calories_per_100g": 87,
+      "protein_per_100g": 1.9,
+      "carbs_per_100g": 20.1,
+      "fat_per_100g": 0.1,
+      "source": "USDA",
+      "aliases": [
+        "potato"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "french_fries",
+      "display_name": "炸薯条",
+      "calories_per_100g": 312,
+      "protein_per_100g": 3.4,
+      "carbs_per_100g": 41.4,
+      "fat_per_100g": 14.7,
+      "source": "USDA",
+      "aliases": [
+        "fries"
+      ],
+      "is_verified": 1
+    },
+    {
+      "food_name": "lettuce",
+      "display_name": "生菜",
+      "calories_per_100g": 15,
+      "protein_per_100g": 1.4,
+      "carbs_per_100g": 2.9,
+      "fat_per_100g": 0.2,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 0
+    },
+    {
+      "food_name": "tomato",
+      "display_name": "番茄",
+      "calories_per_100g": 18,
+      "protein_per_100g": 0.9,
+      "carbs_per_100g": 3.9,
+      "fat_per_100g": 0.2,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 0
+    },
+    {
+      "food_name": "cucumber",
+      "display_name": "黄瓜",
+      "calories_per_100g": 15,
+      "protein_per_100g": 0.7,
+      "carbs_per_100g": 3.6,
+      "fat_per_100g": 0.1,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 0
+    },
+    {
+      "food_name": "milk_whole",
+      "display_name": "全脂牛奶",
+      "calories_per_100g": 61,
+      "protein_per_100g": 3.2,
+      "carbs_per_100g": 4.8,
+      "fat_per_100g": 3.3,
+      "source": "USDA",
+      "aliases": [
+        "milk",
+        "whole_milk"
+      ],
+      "is_verified": 1
+    },
+    {
+      "food_name": "plain_yogurt",
+      "display_name": "原味酸奶",
+      "calories_per_100g": 61,
+      "protein_per_100g": 3.5,
+      "carbs_per_100g": 4.7,
+      "fat_per_100g": 3.3,
+      "source": "USDA",
+      "aliases": [
+        "yogurt"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "banana",
+      "display_name": "香蕉",
+      "calories_per_100g": 89,
+      "protein_per_100g": 1.1,
+      "carbs_per_100g": 22.8,
+      "fat_per_100g": 0.3,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 1
+    },
+    {
+      "food_name": "apple",
+      "display_name": "苹果",
+      "calories_per_100g": 52,
+      "protein_per_100g": 0.3,
+      "carbs_per_100g": 13.8,
+      "fat_per_100g": 0.2,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 0
+    },
+    {
+      "food_name": "vegetable_soup",
+      "display_name": "蔬菜汤",
+      "calories_per_100g": 30,
+      "protein_per_100g": 1.5,
+      "carbs_per_100g": 4.0,
+      "fat_per_100g": 0.8,
+      "source": "local",
+      "aliases": [
+        "veggie_soup"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "milk_tea",
+      "display_name": "奶茶",
+      "calories_per_100g": 90,
+      "protein_per_100g": 1.0,
+      "carbs_per_100g": 16.0,
+      "fat_per_100g": 2.5,
+      "source": "local",
+      "aliases": [
+        "bubble_tea"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "cola",
+      "display_name": "可乐",
+      "calories_per_100g": 42,
+      "protein_per_100g": 0.0,
+      "carbs_per_100g": 10.6,
+      "fat_per_100g": 0.0,
+      "source": "local",
+      "aliases": [
+        "coke"
+      ],
       "is_verified": 0
     }
   ]

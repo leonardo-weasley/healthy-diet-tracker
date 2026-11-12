@@ -1,121 +1,108 @@
-"""API error-code coverage (one test per code in the shared contract).
+import pytest
 
-Codes: INVALID_REQUEST, INVALID_IMAGE, IMAGE_TOO_LARGE, UNSUPPORTED_MEDIA_TYPE,
-INVALID_WEIGHT, FOOD_NOT_FOUND, MEAL_NOT_FOUND, AI_PROVIDER_ERROR,
-INVALID_AI_RESPONSE, DATABASE_ERROR, INTERNAL_ERROR.
-"""
-
-from __future__ import annotations
-
-import io
-
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
-
-from app.services import meal_service
-from app.utils.errors import AIProviderError, InvalidImage
+from app.utils.errors import AiProviderError, DatabaseError, InvalidAiResponse
+from tests.helpers import upload
 
 
-def _assert_error(response, code: str, status: int) -> None:
-    assert response.status_code == status, response.get_data(as_text=True)
-    body = response.get_json()
-    assert body["error"]["code"] == code
+@pytest.mark.parametrize('error,code', [
+    (AiProviderError('provider secret must not leak'), 'AI_PROVIDER_ERROR'),
+    (InvalidAiResponse('Invalid AI output'), 'INVALID_AI_RESPONSE'),
+])
+def test_ai_errors(client, app, monkeypatch, error, code):
+    def fail(path):
+        raise error
+    monkeypatch.setattr(app.extensions['meal_dependencies'], 'analyze_food', fail)
+    response = upload(client)
+    assert response.status_code == 502
+    assert response.json['error']['code'] == code
 
 
-def _post_image(client, image_bytes, filename="meal.png"):
-    return client.post(
-        "/analyze",
-        data={"image": (io.BytesIO(image_bytes), filename)},
-        content_type="multipart/form-data",
-    )
+def test_database_error(client, app, payload, monkeypatch):
+    def fail(data):
+        raise DatabaseError('Unable to save meal.')
+    monkeypatch.setattr(app.extensions['meal_dependencies'], 'save_meal', fail)
+    response = client.post('/api/v1/meals', json=payload)
+    assert response.status_code == 500
+    assert response.json['error']['code'] == 'DATABASE_ERROR'
 
 
-def test_invalid_request_for_empty_items(client):
-    response = client.post(
-        "/meals",
-        json={
-            "meal_type": "lunch",
-            "meal_datetime_utc": "2026-11-01T04:30:00Z",
-            "meal_date": "2026-11-01",
-            "items": [],
-        },
-    )
-    _assert_error(response, "INVALID_REQUEST", 400)
+def test_internal_error(client, app, monkeypatch):
+    def fail(date):
+        raise RuntimeError('API_KEY=secret')
+    monkeypatch.setattr(app.extensions['meal_dependencies'], 'get_daily_summary', fail)
+    response = client.get('/api/v1/dashboard/daily')
+    assert response.status_code == 500
+    assert response.json['error']['code'] == 'INTERNAL_ERROR'
+    assert 'secret' not in response.get_data(as_text=True)
 
 
-def test_invalid_image_from_provider(client, monkeypatch, sample_meal_image):
-    def _bad_image(*_args, **_kwargs):
-        raise InvalidImage("cannot decode image")
-
-    monkeypatch.setattr(meal_service, "analyze_food", _bad_image)
-    _assert_error(_post_image(client, sample_meal_image), "INVALID_IMAGE", 400)
+def test_unsupported_media(client):
+    response = upload(client, content=b'%PDF', mime='application/pdf')
+    assert response.status_code == 415
+    assert response.json['error']['code'] == 'UNSUPPORTED_MEDIA_TYPE'
 
 
-def test_image_too_large(client, app):
-    app.config["MAX_CONTENT_LENGTH"] = 512
-    response = _post_image(client, b"x" * 2048)
-    _assert_error(response, "IMAGE_TOO_LARGE", 413)
+@pytest.mark.parametrize('result', [None, {}, {'schema_version': '1.0', 'status': 'success', 'foods': ['bad'], 'warnings': []}])
+def test_malformed_ai_response(client, app, monkeypatch, result):
+    monkeypatch.setattr(app.extensions['meal_dependencies'], 'analyze_food', lambda _: result)
+    response = upload(client)
+    assert response.status_code == 502
+    assert response.json['error']['code'] == 'INVALID_AI_RESPONSE'
 
 
-def test_unsupported_media_type(client):
-    response = _post_image(client, b"GIF89a", filename="meal.gif")
-    _assert_error(response, "UNSUPPORTED_MEDIA_TYPE", 415)
+def test_unrecognized_still_200(client, app, monkeypatch):
+    monkeypatch.setattr(app.extensions['meal_dependencies'], 'analyze_food', lambda _: {
+        'schema_version': '1.0', 'status': 'error', 'foods': [], 'warnings': ['No food recognized.']})
+    response = upload(client)
+    assert response.status_code == 200
+    assert response.json['status'] == 'success'
+    assert response.json['data']['status'] == 'error'
 
 
-def test_invalid_weight(client, sample_meal_payload):
-    payload = sample_meal_payload
-    payload["items"][0]["weight_g"] = 0
-    _assert_error(client.post("/meals", json=payload), "INVALID_WEIGHT", 400)
+def test_http_errors(client):
+    response = client.get('/api/v1/does-not-exist')
+    assert response.status_code == 404 and response.is_json
+    response = client.put('/api/v1/meals', json={})
+    assert response.status_code == 405 and response.is_json
+    assert 'POST' in response.headers['Allow']
+    assert client.get('/missing-page').mimetype == 'text/html'
 
 
-def test_food_not_found_when_no_detection_matches(client, seeded_db, monkeypatch, sample_meal_image):
-    monkeypatch.setattr(
-        meal_service,
-        "analyze_food",
-        lambda *_args, **_kwargs: {
-            "detected": [{"food_name": "ghost_food", "weight_g": 10.0}]
-        },
-    )
-    _assert_error(_post_image(client, sample_meal_image), "FOOD_NOT_FOUND", 422)
+def test_invalid_daily_date(client):
+    assert client.get('/api/v1/dashboard/daily?date=2026-02-30').status_code == 400
 
 
-def test_meal_not_found_on_get(client):
-    _assert_error(client.get("/meals/999999"), "MEAL_NOT_FOUND", 404)
+def test_false_content_type(client):
+    response = upload(client, mime='image/jpeg')  # PNG bytes with JPEG header.
+    assert response.status_code == 400
+    assert response.json['error']['code'] == 'INVALID_IMAGE'
 
 
-def test_meal_not_found_on_delete(client):
-    _assert_error(client.delete("/meals/999999"), "MEAL_NOT_FOUND", 404)
-
-
-def test_ai_provider_error(client, monkeypatch, sample_meal_image):
-    def _boom(*_args, **_kwargs):
-        raise AIProviderError("provider is down")
-
-    monkeypatch.setattr(meal_service, "analyze_food", _boom)
-    _assert_error(_post_image(client, sample_meal_image), "AI_PROVIDER_ERROR", 502)
-
-
-def test_invalid_ai_response(client, monkeypatch, sample_meal_image):
-    monkeypatch.setattr(
-        meal_service,
-        "analyze_food",
-        lambda *_args, **_kwargs: {"detected": [{"food_name": "rice"}]},
-    )
-    _assert_error(_post_image(client, sample_meal_image), "INVALID_AI_RESPONSE", 502)
-
-
-def test_database_error(client, monkeypatch, sample_meal_payload):
-    def _broken_commit(self):
-        raise SQLAlchemyError("simulated commit failure")
-
-    monkeypatch.setattr(Session, "commit", _broken_commit)
-    response = client.post("/meals", json=sample_meal_payload)
-    _assert_error(response, "DATABASE_ERROR", 500)
-
-
-def test_internal_error(client, monkeypatch, sample_meal_image):
-    def _unexpected(*_args, **_kwargs):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(meal_service, "analyze_image", _unexpected)
-    _assert_error(_post_image(client, sample_meal_image), "INTERNAL_ERROR", 500)
+@pytest.mark.parametrize('case,status,code', [
+    ('request', 400, 'INVALID_REQUEST'),
+    ('image', 400, 'INVALID_IMAGE'),
+    ('size', 413, 'IMAGE_TOO_LARGE'),
+    ('weight', 422, 'INVALID_WEIGHT'),
+    ('food', 422, 'FOOD_NOT_FOUND'),
+    ('meal', 404, 'MEAL_NOT_FOUND'),
+])
+def test_remaining_error_envelopes(client, payload, case, status, code):
+    if case == 'request':
+        response = client.post('/api/v1/meals', json={})
+    elif case == 'image':
+        response = upload(client, content=b'not an image')
+    elif case == 'size':
+        response = upload(client, content=b'x' * (9 * 1024 * 1024))
+    elif case == 'weight':
+        payload['items'][0]['weight_g'] = 0
+        response = client.post('/api/v1/meals', json=payload)
+    elif case == 'food':
+        payload['items'][0]['food_name'] = 'xxx'
+        response = client.post('/api/v1/meals', json=payload)
+    else:
+        response = client.get('/api/v1/meals/99999')
+    assert response.status_code == status
+    assert response.json['status'] == 'error'
+    assert response.json['error']['code'] == code
+    assert set(response.json['error']) == {'code', 'message', 'details'}
+    assert response.content_type == 'application/json; charset=utf-8'

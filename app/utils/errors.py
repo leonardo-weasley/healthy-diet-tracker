@@ -1,95 +1,55 @@
-"""Application error types and the JSON error envelope.
-
-The error codes and HTTP statuses follow ``05_DATABASE_AND_TESTING`` §9.4 and
-the shared contract in ``00_MAIN_TECHNICAL_ROUTE`` §G.2.  Member 1 owns the
-service layer but this module is the single source of truth every layer
-raises from, so tests can assert on ``error.code`` instead of strings.
-"""
-
-from __future__ import annotations
-
-
 class ApiError(Exception):
-    """Base class for errors that are safe to expose to API clients."""
-
-    code = "INTERNAL_ERROR"
-    http_status = 500
-    default_message = "An unexpected error occurred."
-
-    def __init__(self, message: str | None = None, details: dict | None = None):
-        self.message = message or self.default_message
-        self.details = details or {}
-        super().__init__(self.message)
-
-    def to_dict(self) -> dict:
-        return {
-            "code": self.code,
-            "message": self.message,
-            "details": self.details,
-        }
+    def __init__(self, code, message, http_status=400, details=None):
+        super().__init__(message)
+        self.code, self.message = code, message
+        self.http_status, self.details = http_status, details
 
 
-class InvalidRequest(ApiError):
-    code = "INVALID_REQUEST"
+class _TypedError(ApiError):
+    code = ''
     http_status = 400
-    default_message = "The request is invalid."
+
+    def __init__(self, message=None, details=None):
+        if message is None:
+            message = self.code.replace('_', ' ').capitalize() + '.'
+        super().__init__(self.code, message, self.http_status, details)
 
 
-class InvalidImage(ApiError):
-    code = "INVALID_IMAGE"
-    http_status = 400
-    default_message = "The uploaded image could not be read."
+class InvalidRequest(_TypedError):
+    code = 'INVALID_REQUEST'
 
 
-class ImageTooLarge(ApiError):
-    code = "IMAGE_TOO_LARGE"
-    http_status = 413
-    default_message = "The uploaded image is too large."
+class InvalidImage(_TypedError):
+    code = 'INVALID_IMAGE'
 
 
-class UnsupportedMediaType(ApiError):
-    code = "UNSUPPORTED_MEDIA_TYPE"
-    http_status = 415
-    default_message = "Only JPEG, PNG and WebP images are supported."
+class ImageTooLarge(_TypedError):
+    code, http_status = 'IMAGE_TOO_LARGE', 413
 
 
-class InvalidWeight(ApiError):
-    code = "INVALID_WEIGHT"
-    http_status = 400
-    default_message = "Item weight must be greater than 0 g and at most 5000 g."
+class UnsupportedMediaType(_TypedError):
+    code, http_status = 'UNSUPPORTED_MEDIA_TYPE', 415
 
 
-class FoodNotFound(ApiError):
-    code = "FOOD_NOT_FOUND"
-    http_status = 422
-    default_message = "None of the detected foods exists in the food database."
+class InvalidWeight(_TypedError):
+    code, http_status = 'INVALID_WEIGHT', 422
 
 
-class MealNotFound(ApiError):
-    code = "MEAL_NOT_FOUND"
-    http_status = 404
-    default_message = "The requested meal does not exist."
+class FoodNotFound(_TypedError):
+    code, http_status = 'FOOD_NOT_FOUND', 422
 
 
-class AIProviderError(ApiError):
-    code = "AI_PROVIDER_ERROR"
-    http_status = 502
-    default_message = "The AI provider failed to process the image."
+class MealNotFound(_TypedError):
+    code, http_status = 'MEAL_NOT_FOUND', 404
 
 
-class InvalidAIResponse(ApiError):
-    code = "INVALID_AI_RESPONSE"
-    http_status = 502
-    default_message = "The AI provider returned an unusable response."
+class AiProviderError(_TypedError):
+    code, http_status = 'AI_PROVIDER_ERROR', 502
 
 
-class DatabaseError(ApiError):
-    code = "DATABASE_ERROR"
-    http_status = 500
-    default_message = "A database operation failed."
+class InvalidAiResponse(_TypedError):
+    code, http_status = 'INVALID_AI_RESPONSE', 502
 
 
-class InternalError(ApiError):
-    code = "INTERNAL_ERROR"
-    http_status = 500
-    default_message = "An unexpected error occurred."
+class DatabaseError(_TypedError):
+    code, http_status = 'DATABASE_ERROR', 500

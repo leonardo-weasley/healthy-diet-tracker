@@ -24,11 +24,13 @@ from app.extensions import db  # noqa: E402
 
 
 @pytest.fixture
-def app():
+def app(tmp_path):
     """Flask app with an isolated in-memory database."""
     application = create_app(
         {
             "TESTING": True,
+            "BACKEND_MODE": "demo",
+            "UPLOAD_ROOT": str(tmp_path),
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
             "SQLALCHEMY_ENGINE_OPTIONS": {
                 "poolclass": StaticPool,
@@ -50,8 +52,24 @@ def client(app):
 
 
 @pytest.fixture
+def payload():
+    """Backend API meal payload retained for the existing API tests."""
+    return {
+        "meal_type": "lunch",
+        "meal_datetime": "2026-11-01T12:30:00+08:00",
+        "items": [
+            {
+                "food_name": "cooked_white_rice",
+                "display_name": "White rice",
+                "weight_g": 180,
+            }
+        ],
+    }
+
+
+@pytest.fixture
 def seeded_db(app):
-    """Load the placeholder nutrition rows into the test database."""
+    """Load the current reference nutrition rows into the test database."""
     payload = json.loads(FOOD_DATA_PATH.read_text(encoding="utf-8"))
     for row in payload["foods"]:
         aliases = row.get("aliases") or []
