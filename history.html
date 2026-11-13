@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}历史记录 · 健康饮食记录{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">回顾</p>
+    <h1>历史记录</h1>
+    <p class="lead">按日期查看吃过的每一餐，展开可以看明细，也可以删除记错的那一条。</p>
+  </div>
+  <a class="btn btn-primary" href="/upload">＋ 记录一餐</a>
+</section>
+
+<form id="history-filters" class="card filter-card" novalidate>
+  <div class="filter-top">
+    <div class="quick-ranges" role="group" aria-label="快捷时间范围">
+      <button type="button" class="chip" data-range="today">今天</button>
+      <button type="button" class="chip" data-range="7d">近 7 天</button>
+      <button type="button" class="chip is-active" data-range="all">全部</button>
+    </div>
+
+    <div class="filter-dates">
+      <label class="field field-inline">
+        <span class="field-label">开始日期</span>
+        <input id="date-from" class="input input-date" type="date">
+      </label>
+      <span class="date-sep" aria-hidden="true">—</span>
+      <label class="field field-inline">
+        <span class="field-label">结束日期</span>
+        <input id="date-to" class="input input-date" type="date">
+      </label>
+      <button id="apply-filters" class="btn btn-primary" type="submit">查询</button>
+      <button id="reset-filters" class="btn btn-ghost" type="button">清除</button>
+    </div>
+  </div>
+  <p id="filter-error" class="field-error" role="alert" hidden></p>
+</form>
+
+<div id="history-error" class="alert alert-error" role="alert" hidden>
+  <span class="alert-icon" aria-hidden="true">!</span>
+  <div class="alert-body">
+    <strong class="alert-title">记录加载失败</strong>
+    <p id="history-error-text">请稍后重试。</p>
+  </div>
+  <button id="retry-history" class="btn btn-ghost btn-sm" type="button">重试</button>
+</div>
+
+<div id="history-loading" class="history-skeleton" aria-hidden="true">
+  <div class="card skeleton-card"><span class="skeleton skeleton-line w-30"></span><span class="skeleton skeleton-line w-70 tall"></span><span class="skeleton skeleton-line w-50"></span></div>
+  <div class="card skeleton-card"><span class="skeleton skeleton-line w-30"></span><span class="skeleton skeleton-line w-70 tall"></span><span class="skeleton skeleton-line w-50"></span></div>
+  <div class="card skeleton-card"><span class="skeleton skeleton-line w-30"></span><span class="skeleton skeleton-line w-70 tall"></span><span class="skeleton skeleton-line w-50"></span></div>
+</div>
+
+<ul id="history-list" class="history-list" aria-label="餐食记录"></ul>
+
+<div id="history-empty" class="empty-state" hidden>
+  <span class="empty-icon" aria-hidden="true">🗓️</span>
+  <h3 id="history-empty-title">还没有记录</h3>
+  <p id="history-empty-text">上传一张餐食照片，保存后就会出现在这里。</p>
+  <div class="empty-actions">
+    <button id="empty-action" class="btn btn-primary" type="button" hidden>清除筛选</button>
+    <a id="empty-upload-link" class="btn btn-primary" href="/upload">记录第一餐</a>
+  </div>
+</div>
+
+<nav id="pagination" class="pagination" aria-label="历史记录分页" hidden>
+  <button id="prev-page" class="btn btn-ghost btn-sm" type="button">← 上一页</button>
+  <span id="page-info" class="page-info">第 1 页</span>
+  <button id="next-page" class="btn btn-ghost btn-sm" type="button">下一页 →</button>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/history.js') }}" defer></script>
+{% endblock %}

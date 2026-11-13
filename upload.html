@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}上传餐食 · 健康饮食记录{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">第一步</p>
+    <h1>上传餐食照片</h1>
+    <p class="lead">选择一张照片并告诉我们是哪一餐，AI 会识别食物种类并估算重量。</p>
+  </div>
+  <a class="back-link" href="/">← 返回概览</a>
+</section>
+
+<div class="upload-layout">
+  <form id="upload-form" class="card upload-card" novalidate>
+    <section class="step-block" aria-labelledby="step-photo-title">
+      <div class="step-head">
+        <span class="step-num" aria-hidden="true">1</span>
+        <h2 id="step-photo-title">选择照片</h2>
+      </div>
+
+      <label id="drop-zone" class="drop-zone" for="file-input">
+        <input id="file-input" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp">
+        <span class="drop-zone-empty" id="drop-zone-empty">
+          <span class="drop-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <circle cx="8.5" cy="10" r="1.5"></circle>
+              <path d="M21 15l-4.5-4.5L9 18"></path>
+            </svg>
+          </span>
+          <span class="drop-title">点击选择，或把照片拖到这里</span>
+          <span class="drop-hint">支持 JPG / PNG / WebP，最大 8 MB</span>
+        </span>
+      </label>
+
+      <div id="preview-wrap" class="preview-wrap" hidden>
+        <img id="preview" class="preview-image" alt="所选餐食照片预览">
+        <div class="preview-meta">
+          <p id="file-meta" class="file-meta"></p>
+          <button id="clear-file-btn" class="btn btn-ghost btn-sm" type="button">重新选择</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-block" aria-labelledby="step-meal-title">
+      <div class="step-head">
+        <span class="step-num" aria-hidden="true">2</span>
+        <h2 id="step-meal-title">这是哪一餐？</h2>
+      </div>
+
+      <fieldset class="meal-type-fieldset" id="meal-type-group">
+        <legend class="sr-only">选择餐型</legend>
+        <div class="segmented">
+          <input type="radio" id="meal-breakfast" name="meal_type" value="breakfast">
+          <label for="meal-breakfast">早餐</label>
+          <input type="radio" id="meal-lunch" name="meal_type" value="lunch">
+          <label for="meal-lunch">午餐</label>
+          <input type="radio" id="meal-dinner" name="meal_type" value="dinner">
+          <label for="meal-dinner">晚餐</label>
+          <input type="radio" id="meal-snack" name="meal_type" value="snack">
+          <label for="meal-snack">加餐</label>
+        </div>
+      </fieldset>
+      <p class="hint">已按当前时间预选，可以修改。餐型由你决定，AI 不会替你做这个判断。</p>
+    </section>
+
+    <div id="upload-error" class="alert alert-error" role="alert" hidden>
+      <span class="alert-icon" aria-hidden="true">!</span>
+      <div class="alert-body">
+        <strong class="alert-title">无法分析这张照片</strong>
+        <p id="upload-error-text"></p>
+      </div>
+    </div>
+
+    <p id="analyze-status" class="status-line" role="status" aria-live="polite"></p>
+
+    <button id="analyze-btn" class="btn btn-primary btn-lg btn-block" type="submit" disabled>
+      分析这张照片
+    </button>
+    <p class="hint hint-center">分析通常需要 3–10 秒，请保持页面打开。</p>
+
+    <p class="manual-entry">
+      <span>不想拍照？</span>
+      <button id="manual-entry-btn" class="link-button" type="button">直接手动记录这一餐</button>
+    </p>
+  </form>
+
+  <aside class="upload-aside" aria-label="拍摄提示">
+    <section class="card tips-card">
+      <h2 class="card-title">拍得清楚，认得更准</h2>
+      <ul class="tips-list">
+        <li><span aria-hidden="true">☀️</span><div><strong>光线充足</strong><p>避免逆光和大面积阴影。</p></div></li>
+        <li><span aria-hidden="true">📷</span><div><strong>从正上方拍</strong><p>让盘子和食物完整出现在画面里。</p></div></li>
+        <li><span aria-hidden="true">🥢</span><div><strong>放个参照物</strong><p>筷子、勺子能帮助估算份量。</p></div></li>
+        <li><span aria-hidden="true">🍲</span><div><strong>混合菜要留意</strong><p>盖饭、汤面容易认错，下一步可以手动修正。</p></div></li>
+      </ul>
+    </section>
+
+    <section class="card privacy-card">
+      <h2 class="card-title">关于你的数据</h2>
+      <p>照片会保存在本机的 <code>uploads/</code> 目录；点击“分析”时会发送给 AI 服务用于识别，不作其他用途。API Key 只在服务端读取，不会出现在浏览器里。</p>
+    </section>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/upload.js') }}" defer></script>
+{% endblock %}
