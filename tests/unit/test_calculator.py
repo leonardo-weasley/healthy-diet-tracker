@@ -5,6 +5,8 @@
 """
 
 import json
+from decimal import ROUND_HALF_UP, Decimal
+from pathlib import Path
 
 import pytest
 
@@ -20,28 +22,64 @@ RICE_180 = {"food_name": "cooked_white_rice", "display_name": "White rice",
 CHICKEN_120 = {"food_name": "grilled_chicken_breast", "display_name": "Chicken",
                "estimated_weight_g": 120.0}
 
+# 营养值由 USDA 数据构建，可能随数据源更新；期望值从数据文件推导，而不是写死。
+_FOODS = {
+    row["food_name"]: row
+    for row in json.loads(
+        (Path(__file__).resolve().parents[2] / "app" / "nutrition" / "food_database.json")
+        .read_text(encoding="utf-8")
+    )["foods"]
+}
+
+
+_JSON_KEY = {
+    "calories_kcal": "calories_per_100g",
+    "protein_g": "protein_per_100g",
+    "carbs_g": "carbs_per_100g",
+    "fat_g": "fat_per_100g",
+}
+
+
+def _expected(food_name: str, weight_g: float, key: str) -> float:
+    places = 1 if key == "calories_kcal" else 2
+    value = Decimal(str(weight_g)) / Decimal(100) * Decimal(
+        str(_FOODS[food_name][_JSON_KEY[key]]))
+    return float(value.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP))
+
+
+def _expected_total(weight_map: dict[str, float], key: str) -> float:
+    exact = sum(
+        Decimal(str(weight)) / Decimal(100) * Decimal(
+            str(_FOODS[name][_JSON_KEY[key]]))
+        for name, weight in weight_map.items()
+    )
+    places = 1 if key == "calories_kcal" else 2
+    return float(exact.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP))
+
 
 # --- N1 / N2：米饭单项 + 碳水精度 -------------------------------------------
 def test_rice_180g():
     result = calculate_food_nutrition("cooked_white_rice", 180)
-    assert result["calories_kcal"] == pytest.approx(234.0, abs=0.01)
-    assert result["protein_g"] == pytest.approx(4.86, abs=0.01)
-    assert result["carbs_g"] == pytest.approx(50.76, abs=0.01)
-    assert result["fat_g"] == pytest.approx(0.54, abs=0.01)
+    assert result["calories_kcal"] == pytest.approx(_expected("cooked_white_rice", 180, "calories_kcal"), abs=0.01)
+    assert result["protein_g"] == pytest.approx(_expected("cooked_white_rice", 180, "protein_g"), abs=0.01)
+    assert result["carbs_g"] == pytest.approx(_expected("cooked_white_rice", 180, "carbs_g"), abs=0.01)
+    assert result["fat_g"] == pytest.approx(_expected("cooked_white_rice", 180, "fat_g"), abs=0.01)
 
 
 # --- N3 / N4：两项合计（米饭 180 + 鸡胸 120） --------------------------------
 def test_meal_totals_calories():
     result = calculate_meal_nutrition([RICE_180, CHICKEN_120])
     assert len(result["items"]) == 2
-    assert result["totals"]["calories_kcal"] == pytest.approx(432.0, abs=0.01)
+    assert result["totals"]["calories_kcal"] == pytest.approx(
+        _expected_total({"cooked_white_rice": 180, "grilled_chicken_breast": 120}, "calories_kcal"), abs=0.01)
 
 
 def test_meal_totals_protein():
     result = calculate_meal_nutrition([RICE_180, CHICKEN_120])
-    assert result["totals"]["protein_g"] == pytest.approx(42.06, abs=0.01)
-    assert result["totals"]["carbs_g"] == pytest.approx(50.76, abs=0.01)
-    assert result["totals"]["fat_g"] == pytest.approx(4.86, abs=0.01)
+    weights = {"cooked_white_rice": 180, "grilled_chicken_breast": 120}
+    assert result["totals"]["protein_g"] == pytest.approx(_expected_total(weights, "protein_g"), abs=0.01)
+    assert result["totals"]["carbs_g"] == pytest.approx(_expected_total(weights, "carbs_g"), abs=0.01)
+    assert result["totals"]["fat_g"] == pytest.approx(_expected_total(weights, "fat_g"), abs=0.01)
 
 
 # --- N5：零卡食物（可乐 330g） -----------------------------------------------
@@ -72,7 +110,8 @@ def test_partial_failure_does_not_break_others():
              {"food_name": None, "display_name": "酱汁", "estimated_weight_g": None}]
     result = calculate_meal_nutrition(foods)
     assert len(result["items"]) == 2
-    assert result["totals"]["calories_kcal"] == pytest.approx(432.0, abs=0.01)
+    assert result["totals"]["calories_kcal"] == pytest.approx(
+        _expected_total({"cooked_white_rice": 180, "grilled_chicken_breast": 120}, "calories_kcal"), abs=0.01)
     assert any(w.startswith("food_not_matched:") for w in result["warnings"])
 
 

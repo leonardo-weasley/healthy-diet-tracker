@@ -62,7 +62,7 @@
 | Web 框架 | Flask | 3.x | 路由、模板渲染、JSON 接口 |
 | 前端 | HTML / CSS / 原生 JavaScript | — | 页面与交互，**不用框架** |
 | 图表 | Chart.js | 4.x | 仪表盘可视化（CDN 引入） |
-| AI | Google Gemini API（`google-genai` SDK） | 最新 | 图像理解 + 强制 JSON 输出 |
+| AI | DeepSeek（OpenAI 兼容接口，`openai` SDK） | 2.x | 图像理解 + 强制 JSON 输出；无 Key 时用内置 mock |
 | 校验 | Pydantic | v2 | 模块边界数据校验 |
 | 数据库 | SQLite | 3 | 本地持久化，单文件 |
 | ORM | SQLAlchemy / Flask-SQLAlchemy | 2.x / 3.x | 模型与关系 |
@@ -90,7 +90,7 @@ AI 模块      营养模块      数据库模块
 ai/          nutrition/    database/
    │            │            │
    ▼            ▼            ▼
-Gemini API   本地 JSON 营养库   SQLite
+DeepSeek / mock   本地 JSON 营养库   SQLite
 ```
 
 四条硬边界（违反即架构事故）：
@@ -134,7 +134,7 @@ Gemini API   本地 JSON 营养库   SQLite
 | 编辑器 | VS Code（推荐，装 Python 扩展） |
 | 浏览器 | Chrome / Edge 最新版 |
 | 网络 | 只在调用 AI 时需要；其余功能可离线 |
-| Gemini API Key | 免费额度足够，从 Google AI Studio 获取 |
+| AI API Key | 可选；没有 Key 时用 `scripts/mock_ai_provider.py` 本地模拟 |
 
 检查环境：
 
@@ -182,11 +182,12 @@ pip install -r requirements.txt
 Flask>=3.0
 Flask-SQLAlchemy>=3.1
 SQLAlchemy>=2.0
+openai>=2.0,<3.0
 pydantic>=2.6
-python-dotenv>=1.0
 Pillow>=10.0
-google-genai>=0.3
+python-dotenv>=1.0
 pytest>=8.0
+tzdata>=2024.1
 ```
 
 ### 7.3 配置环境变量
@@ -203,29 +204,60 @@ cp .env.example .env
 `.env`（**绝不提交**）：
 
 ```dotenv
-FLASK_ENV=development
-SECRET_KEY=change-me-locally
-AI_PROVIDER=gemini
+# 真实供应商（任选其一，OpenAI 兼容即可）
 AI_API_KEY=你的真实key
-AI_MODEL=gemini-2.0-flash
+AI_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-flash
 AI_TIMEOUT_SECONDS=30
-DATABASE_URL=sqlite:///instance/diet_tracker.db
+
+# 应用
 APP_TIMEZONE=Asia/Shanghai
+APP_HOST=127.0.0.1
+APP_PORT=5000
+BACKEND_MODE=real
+DATABASE_URL=sqlite:///diet_tracker.db
 ```
 
-> `AI_MODEL` 的具体型号会随供应商更新，以官方文档为准。没有 Key 也能起服务，只是上传分析会返回 `AI_PROVIDER_ERROR`——这方便前端先开发。
+**没有 Key 也能完整跑通**：仓库自带 `scripts/mock_ai_provider.py`，它实现
+`POST /v1/chat/completions`，按图片内容稳定返回一份契约 A 的识别结果。把 `.env` 指向它即可：
+
+```dotenv
+AI_API_KEY=mock-local-key
+AI_BASE_URL=http://127.0.0.1:5100/v1
+AI_MODEL=mock-vision
+```
+
+> 模拟服务只用于开发联调，不产生真实识别；换回真实 Key 时只改这三行。
+> `AI_MODEL` 的具体型号以供应商文档为准。
 
 ### 7.4 初始化数据库与食物库
 
 ```bash
-python scripts/init_db.py      # 建三张表
-python scripts/seed_foods.py   # 导入 20–30 条食物（幂等，可重复跑）
+python scripts/init_db.py      # 建三张表（instance/diet_tracker.db）
+python scripts/seed_foods.py   # 导入 29 条食物（幂等，可重复跑）
+```
+
+食物库的每 100 g 营养值来自 **USDA FoodData Central**（Foundation / SR Legacy），
+每条都记录了 `usda.fdc_id`。需要重新拉取时：
+
+```bash
+python scripts/fetch_usda_foods.py            # 有缓存，重复运行不会重复请求
+python scripts/fetch_usda_foods.py --dry-run  # 只看匹配结果，不改文件
 ```
 
 ### 7.5 运行
 
+一键启动（自动建库、导入食物、按 `.env` 拉起模拟 AI）：
+
 ```bash
-python run.py
+python scripts/start_dev.py     # 或 ./start.sh（Windows 双击 start.cmd）
+```
+
+也可以手动分两个终端：
+
+```bash
+python scripts/mock_ai_provider.py   # 终端 1（使用真实 Key 时不需要）
+python run.py                        # 终端 2
 ```
 
 浏览器打开 <http://127.0.0.1:5000>。
@@ -277,6 +309,9 @@ healthy-diet-tracker/
 ├── scripts/
 │   ├── init_db.py
 │   ├── seed_foods.py
+│   ├── fetch_usda_foods.py     # 从 USDA 拉取并重建食物库
+│   ├── mock_ai_provider.py     # OpenAI 兼容的本地模拟视觉接口
+│   ├── start_dev.py            # 一键启动（建库 + mock + 应用）
 │   └── evaluate_portions.py    # 选做：MAPE 实验
 │
 ├── instance/                   # SQLite 文件（Git 忽略）
@@ -369,7 +404,7 @@ Thumbs.db
 | 现象 | 原因 | 解决 |
 |---|---|---|
 | `ModuleNotFoundError: flask` | 虚拟环境没激活 | 重新激活 `.venv` 后 `pip install -r requirements.txt` |
-| 上传后提示 "AI 服务不可用" | 没配 `AI_API_KEY`，或额度用尽 | 检查 `.env`；换 Key 或稍后重试 |
+| 上传后提示 "AI 服务不可用" | 没配 `AI_API_KEY`、额度用尽，或模拟服务没启动 | 检查 `.env`；本地调试确认 5100 端口的 mock 已运行 |
 | 端口 5000 被占用 | 另一个进程在用 | 改 `run.py` 里的 `port=5001`，或用 `Get-NetTCPConnection -LocalPort 5000` 找进程 |
 | 数据库表不存在 | 没跑初始化 | `python scripts/init_db.py && python scripts/seed_foods.py` |
 | 保存后卡路里没变 | 后端没重算，或前端算了假数 | 见 `01_BACKEND_DEVELOPER.md` §7；前端禁止提交营养字段 |
@@ -392,13 +427,17 @@ Thumbs.db
 
 ## 14. 许可证与致谢
 
-课程项目用途。营养参考数据来自 [USDA FoodData Central](https://fdc.nal.usda.gov/)（公有领域），AI 能力由 Google Gemini API 提供。
+课程项目用途。营养参考数据来自 [USDA FoodData Central](https://fdc.nal.usda.gov/)（公有领域），AI 能力由 DeepSeek（OpenAI 兼容接口）提供，本地调试使用内置 mock。
 
 
-## 成员 1 后端联调入口
+## 联调与交付状态
 
-后端应用工厂、6 个 API、上传与错误处理已接入。默认 BACKEND_MODE=demo，使用固定 AI、两条营养测试数据和内存仓储；记录重启后清空。
+当前分支已完成四个页面、6 个 API、营养引擎和 SQLite 仓储的整合：
 
-Windows 完整解压后可双击 start.cmd；新电脑需要先安装 Python 3.11+ 并勾选 Add python.exe to PATH，首次安装依赖需联网。也可按本 README 的虚拟环境步骤安装依赖后执行 python run.py。
+- `BACKEND_MODE=real` 为默认值，数据写入 `instance/diet_tracker.db`，上传图片落在 `uploads/YYYY/MM/`；
+- 29 条食物营养值由 `scripts/fetch_usda_foods.py` 从 USDA FoodData Central 拉取并写入 `app/nutrition/food_database.json`，每条带 `usda.fdc_id`；
+- 无真实 Key 时，`scripts/mock_ai_provider.py` 提供 OpenAI 兼容的本地视觉接口，`start_dev.py` 会自动拉起；
+- 184 个测试全部通过（含页面接线与 mock 契约测试），端到端流程（上传 → 识别 → 修正 → 保存 → 仪表盘 → 历史 → 删除）已实际跑通。
 
-后端说明见 docs/BACKEND_HANDOFF.md。真实模式仍需要成员 3 的营养模块和成员 5 的数据库模块；成员 2 已有的 AI 代码保持原样。
+Windows 可双击 `start.cmd`，Linux/macOS 运行 `./start.sh`；首次安装依赖需要联网。
+后端细节见 `docs/BACKEND_HANDOFF.md`，本次整合记录见 `docs/INTEGRATION_REPORT.md`。
