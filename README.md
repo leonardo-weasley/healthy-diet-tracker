@@ -1,5 +1,9 @@
 # Healthy Diet Tracker · 健康饮食追踪器
 
+| 版本 | 许可证 | Python | 状态 |
+|---|---|---|---|
+| 1.0.0 | [MIT](LICENSE) | ≥ 3.11 | 课程项目 MVP |
+
 一个在**本地浏览器**运行的个人饮食追踪应用：上传一张餐食照片 → 多模态 AI 识别食物并估算份量 → **我们自己的 Python 算法**查本地营养库计算卡路里与宏量营养素 → 用户确认/修正 → 存入本地 SQLite → 仪表盘查看每日与历史统计。
 
 - 团队：5 名大学生开发者，6 周
@@ -111,9 +115,11 @@ DeepSeek / mock   本地 JSON 营养库   SQLite
 | [`docs/00_MAIN_TECHNICAL_ROUTE.md`](docs/00_MAIN_TECHNICAL_ROUTE.md) | **全员** | 权威技术规范：架构、契约、6 个端点、7 个函数签名、错误码、Git 流程、里程碑、验收标准 |
 | [`docs/01_BACKEND_DEVELOPER.md`](docs/01_BACKEND_DEVELOPER.md) | 成员1 | Flask 应用工厂、6 个路由、服务编排、上传校验、错误翻译 |
 | [`docs/02_AI_INTEGRATION_DEVELOPER.md`](docs/02_AI_INTEGRATION_DEVELOPER.md) | 成员2 | 供应商接入、提示词、JSON 输出、Pydantic 校验、超时重试、mock |
-| [`docs/03_NUTRITION_ENGINE_DEVELOPER.md`](docs/03_NUTRITION_ENGINE_DEVELOPER.md) | 成员3 | 食物库格式与 24 条初始数据、匹配策略、计算公式、取整、单测 |
+| [`docs/03_NUTRITION_ENGINE_DEVELOPER.md`](docs/03_NUTRITION_ENGINE_DEVELOPER.md) | 成员3 | 食物库格式与 29 条初始数据、匹配策略、计算公式、取整、单测 |
 | [`docs/04_FRONTEND_DEVELOPER.md`](docs/04_FRONTEND_DEVELOPER.md) | 成员4 | 四个页面、元素 id、Fetch 封装、加载/错误/空状态、Chart.js |
 | [`docs/05_DATABASE_AND_TESTING_DEVELOPER.md`](docs/05_DATABASE_AND_TESTING_DEVELOPER.md) | 成员5 | 三张表、SQLAlchemy 模型、仓储函数、聚合查询、测试体系 |
+| [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) | **全员** | 许可证、第三方声明、数据来源与文档一致性说明 |
+| [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | **全员** | 依赖、CDN 库、外部服务与数据集的许可信息 |
 
 **推荐的阅读顺序**
 
@@ -150,7 +156,7 @@ git --version
 ### 7.1 克隆并创建虚拟环境
 
 ```bash
-git clone https://github.com/YOUR-TEAM/healthy-diet-tracker.git
+git clone https://github.com/leonardo-weasley/healthy-diet-tracker.git
 cd healthy-diet-tracker
 
 python -m venv .venv
@@ -282,6 +288,10 @@ healthy-diet-tracker/
 ├── requirements.txt
 ├── .env.example                # 变量清单（无真实密钥）
 ├── .gitignore
+├── LICENSE                     # MIT
+├── CITATION.cff                # 引用元数据
+├── THIRD_PARTY_NOTICES.md      # 第三方组件与数据来源
+├── SECURITY.md                 # 安全说明
 ├── README.md                   # 本文件
 │
 ├── docs/                       # 全部规范文档（见 §5）
@@ -296,7 +306,7 @@ healthy-diet-tracker/
 │   ├── nutrition/              # 营养引擎（成员3）
 │   ├── database/               # 模型与仓储（成员5）
 │   ├── utils/                  # errors / images / timeutil（成员1）
-│   ├── templates/              # 5 个页面模板（成员4）
+│   ├── templates/              # base + 4 个页面 + 占位页（成员4）
 │   └── static/                 # CSS + JS（成员4）
 │
 ├── tests/
@@ -355,28 +365,31 @@ healthy-diet-tracker/
 
 | 分支 | 用途 |
 |---|---|
-| `main` | 稳定可演示版，只接受来自 `develop` 的 PR |
-| `develop` | 集成，随时可运行 |
+| `main` | 稳定可演示版，只接受来自集成分支的 PR |
+| `develop-test-branch` | 当前集成分支，随时可运行 |
 | `feature/<模块>` | 个人开发分支 |
+
+> 早期技术文档（`docs/00`–`05`）把集成分支简称为 `develop`；本仓库实际分支名为
+> `develop-test-branch`，执行文中命令时请按实际分支名替换。
 
 ### 11.2 提交流程
 
 ```bash
-git checkout develop && git pull
+git checkout develop-test-branch && git pull
 git checkout -b feature/ai
 # 写代码
 git add app/ai tests/unit/test_ai_schema.py
 git commit -m "feat(ai): add image analyzer with schema validation"
 git push -u origin feature/ai
-# 开 PR → develop，找 1 人 Review
+# 开 PR → develop-test-branch，找 1 人 Review
 ```
 
 提交前缀：`feat` / `fix` / `docs` / `test` / `refactor` / `style` / `chore`。
 
 ### 11.3 五条纪律
 
-1. **不许直接推 `main`**，也不许直接推 `develop`。
-2. **不许把红着测试的代码合进 `develop`**。
+1. **不许直接推 `main`**，也不许直接推 `develop-test-branch`。
+2. **不许把红着测试的代码合进 `develop-test-branch`**。
 3. **不许提交** `.env`、`instance/*.db`、`uploads/*`、真实餐食照片。
 4. **不许单方面改契约**：改字段名 = 改 `00_MAIN_TECHNICAL_ROUTE.md` + 全组通知。
 5. **不许在 PR 里顺手重构别人的模块**。
@@ -384,15 +397,41 @@ git push -u origin feature/ai
 ### 11.4 `.gitignore` 必须包含
 
 ```gitignore
+# 密钥与本地配置
 .env
-.venv/
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+credentials.json
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
 .pytest_cache/
-instance/*.db
-uploads/*
-!uploads/.gitkeep
-instance/.gitkeep
+*.egg-info/
+
+# 运行时产物
+instance/
+uploads/
+
+# 真实餐食照片不入库（00 §12.3）
+tests/fixtures/*.jpg
+tests/fixtures/*.jpeg
+!tests/fixtures/placeholder.jpg
+!tests/fixtures/sample_meal.png
+tests/fixtures/photos/
+
+# 工具缓存
+.coverage
+htmlcov/
+scripts/usda_cache/
+*.log
+.worktrees/
 .DS_Store
 Thumbs.db
 ```
@@ -425,9 +464,31 @@ Thumbs.db
 
 ---
 
-## 14. 许可证与致谢
+## 14. 许可证
 
-课程项目用途。营养参考数据来自 [USDA FoodData Central](https://fdc.nal.usda.gov/)（公有领域），AI 能力由 DeepSeek（OpenAI 兼容接口）提供，本地调试使用内置 mock。
+本项目以 **MIT License** 发布，全文见 [`LICENSE`](LICENSE)。
+
+- 第三方 Python 包、CDN 库、外部服务与数据集的许可信息：见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+- 合规检查与文档一致性说明：见 [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md)
+- 引用本项目时使用 [`CITATION.cff`](CITATION.cff)（GitHub 仓库页会显示 "Cite this repository"）
+
+## 15. 致谢
+
+- **USDA FoodData Central**（[fdc.nal.usda.gov](https://fdc.nal.usda.gov/)）
+  提供 24 条食物的每 100 g 营养参考值。该数据集为美国联邦政府作品（公有领域），
+  本项目在 `app/nutrition/food_database.json` 中逐条保留 `usda.fdc_id` 与抓取日期。
+  引用格式见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) §4.1。
+- **DeepSeek**（[platform.deepseek.com](https://platform.deepseek.com/)）
+  提供 OpenAI 兼容的多模态接口，用于食物识别与份量估算。
+- **Chart.js**（[chartjs.org](https://www.chartjs.org/)，MIT）
+  提供仪表盘图表，经 jsDelivr CDN 引入。
+- **Flask、Flask-SQLAlchemy、SQLAlchemy、Pydantic、Pillow、python-dotenv、pytest、tzdata**
+  构成本项目的运行与测试基础，许可条款见 `THIRD_PARTY_NOTICES.md`。
+- **课程团队成员**：后端集成、AI 集成、营养引擎、前端、数据库与测试五个角色共同完成。
+  具体提交记录见 GitHub 仓库的 Contributors 页面。
+
+> 本项目为课程作业，与上述机构无隶属、赞助或背书关系。
+> 所有营养数值均为估算值，不得用于医疗、疾病管理或专业营养干预（见 §13）。
 
 
 ## 联调与交付状态
