@@ -24,4 +24,12 @@ uploads/
 tests/fixtures/*.jpg
 tests/fixtures/*.jpeg
 !tests/fixtures/placeholder.jpg
+!tests/fixtures/sample_meal.png
 tests/fixtures/photos/
+.coverage
+htmlcov/
+
+# USDA 拉取缓存（体积大，可重新生成）
+scripts/usda_cache/
+*.log
+.worktrees/

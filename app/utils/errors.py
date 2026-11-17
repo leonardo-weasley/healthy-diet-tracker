@@ -1,84 +1,55 @@
-"""统一异常体系（成员1 主责）。
-
-⚠️ 占位实现：内容与 ``00`` §G.2 逐字一致，成员1 提交正式版本时直接覆盖本文件即可，
-调用方（``app/ai``、``app/nutrition``、``app/database``）不需要任何改动。
-"""
-
-
 class ApiError(Exception):
-    def __init__(self, code: str, message: str, http_status: int = 400, details=None):
+    def __init__(self, code, message, http_status=400, details=None):
         super().__init__(message)
-        self.code = code
-        self.message = message
-        self.http_status = http_status
-        self.details = details
+        self.code, self.message = code, message
+        self.http_status, self.details = http_status, details
 
 
-class InvalidImage(ApiError):
-    """code=INVALID_IMAGE, http_status=400"""
+class _TypedError(ApiError):
+    code = ''
+    http_status = 400
 
-    def __init__(self, message: str = "Invalid image.", details=None):
-        super().__init__("INVALID_IMAGE", message, 400, details)
-
-
-class ImageTooLarge(ApiError):
-    """code=IMAGE_TOO_LARGE, http_status=413"""
-
-    def __init__(self, message: str = "Image exceeds size limit.", details=None):
-        super().__init__("IMAGE_TOO_LARGE", message, 413, details)
+    def __init__(self, message=None, details=None):
+        if message is None:
+            message = self.code.replace('_', ' ').capitalize() + '.'
+        super().__init__(self.code, message, self.http_status, details)
 
 
-class UnsupportedMediaType(ApiError):
-    """code=UNSUPPORTED_MEDIA_TYPE, http_status=415"""
-
-    def __init__(self, message: str = "Unsupported media type.", details=None):
-        super().__init__("UNSUPPORTED_MEDIA_TYPE", message, 415, details)
+class InvalidRequest(_TypedError):
+    code = 'INVALID_REQUEST'
 
 
-class InvalidRequest(ApiError):
-    """code=INVALID_REQUEST, http_status=400"""
-
-    def __init__(self, message: str = "Invalid request.", details=None):
-        super().__init__("INVALID_REQUEST", message, 400, details)
+class InvalidImage(_TypedError):
+    code = 'INVALID_IMAGE'
 
 
-class InvalidWeight(ApiError):
-    """code=INVALID_WEIGHT, http_status=422"""
-
-    def __init__(self, message: str = "Invalid weight value.", details=None):
-        super().__init__("INVALID_WEIGHT", message, 422, details)
+class ImageTooLarge(_TypedError):
+    code, http_status = 'IMAGE_TOO_LARGE', 413
 
 
-class FoodNotFound(ApiError):
-    """code=FOOD_NOT_FOUND, http_status=422"""
-
-    def __init__(self, message: str = "Food not found in database.", details=None):
-        super().__init__("FOOD_NOT_FOUND", message, 422, details)
+class UnsupportedMediaType(_TypedError):
+    code, http_status = 'UNSUPPORTED_MEDIA_TYPE', 415
 
 
-class MealNotFound(ApiError):
-    """code=MEAL_NOT_FOUND, http_status=404"""
-
-    def __init__(self, message: str = "Meal not found.", details=None):
-        super().__init__("MEAL_NOT_FOUND", message, 404, details)
+class InvalidWeight(_TypedError):
+    code, http_status = 'INVALID_WEIGHT', 422
 
 
-class AiProviderError(ApiError):
-    """code=AI_PROVIDER_ERROR, http_status=502"""
-
-    def __init__(self, message: str = "AI provider error.", details=None):
-        super().__init__("AI_PROVIDER_ERROR", message, 502, details)
+class FoodNotFound(_TypedError):
+    code, http_status = 'FOOD_NOT_FOUND', 422
 
 
-class InvalidAiResponse(ApiError):
-    """code=INVALID_AI_RESPONSE, http_status=502"""
-
-    def __init__(self, message: str = "Invalid AI response.", details=None):
-        super().__init__("INVALID_AI_RESPONSE", message, 502, details)
+class MealNotFound(_TypedError):
+    code, http_status = 'MEAL_NOT_FOUND', 404
 
 
-class DatabaseError(ApiError):
-    """code=DATABASE_ERROR, http_status=500"""
+class AiProviderError(_TypedError):
+    code, http_status = 'AI_PROVIDER_ERROR', 502
 
-    def __init__(self, message: str = "Database error.", details=None):
-        super().__init__("DATABASE_ERROR", message, 500, details)
+
+class InvalidAiResponse(_TypedError):
+    code, http_status = 'INVALID_AI_RESPONSE', 502
+
+
+class DatabaseError(_TypedError):
+    code, http_status = 'DATABASE_ERROR', 500
