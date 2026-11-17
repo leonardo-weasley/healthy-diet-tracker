@@ -45,27 +45,22 @@ echo Installing project dependencies. Internet access is needed on first setup..
 if errorlevel 1 goto failed
 
 :run
-if /I "%~1"=="--check" goto check
-echo Starting the local backend...
+echo Starting database, mock AI (if configured) and web app...
 echo When ready, open http://127.0.0.1:5000/ in your browser.
-echo Keep this window open. Press Ctrl+C to stop.
-echo DEMO MODE: fixed AI output; records are cleared on restart.
+echo Keep this window open. Press Ctrl+C to stop everything.
 echo.
-"%PYTHON%" -u "%~dp0run.py"
+"%PYTHON%" -u "%~dp0scripts\start_dev.py"
 set "RESULT=%ERRORLEVEL%"
 echo.
 echo The server has stopped. Any error is shown above.
 pause
 exit /b %RESULT%
 
-:check
-"%PYTHON%" "%~dp0demo.py"
-exit /b %ERRORLEVEL%
-
 :badversion
 echo Python 3.11 or newer is required. Check the Python version and try again.
+goto failed
 
 :failed
 echo Startup did not complete. Read the message above or share a screenshot.
-if /I not "%~1"=="--check" pause
+pause
 exit /b 1
