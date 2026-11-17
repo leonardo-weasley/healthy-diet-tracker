@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+title: "Healthy Diet Tracker"
+message: "If you reference this project in academic work, please cite it as below."
+type: software
+authors:
+  - name: "Healthy Diet Tracker Team"
+repository-code: "https://github.com/leonardo-weasley/healthy-diet-tracker"
+url: "https://github.com/leonardo-weasley/healthy-diet-tracker"
+license: MIT
+version: 1.0.0
+date-released: 2026-11-17
+abstract: >-
+  A local, single-user web application that turns a meal photo into an editable
+  nutrition record. A multimodal model identifies foods and estimates portion
+  weights only; all calorie and macronutrient values are computed deterministically
+  in Python from a local USDA-derived food database, then stored in SQLite and
+  summarized on a daily dashboard and history page.
+keywords:
+  - nutrition
+  - diet-tracking
+  - flask
+  - sqlite
+  - computer-vision
+  - portion-estimation
+  - usda-fooddata-central
+references:
+  - type: dataset
+    title: "USDA FoodData Central"
+    authors:
+      - name: "U.S. Department of Agriculture, Agricultural Research Service"
+    url: "https://fdc.nal.usda.gov/"
+    date-accessed: 2026-11-17
