@@ -79,13 +79,15 @@ cd android
 export JAVA_HOME=/path/to/jdk17
 export ANDROID_BUILD_TOOLS=/path/to/build-tools/34.0.0
 export ANDROID_PLATFORM=/path/to/platforms/android-34/android.jar
+export HDT_STORE_PASS='your-keystore-password'   # 必填，不写入仓库
 ./build.sh
 ```
 
 产物：`dist/HealthyDietTracker-1.0.0.apk.zip`。
 
-签名默认使用 `android/keystore/release.jks`（开发自签名，密码在 `build.sh` 中）。
-正式对外发布请替换为自己的 keystore，并妥善保管。
+签名默认使用 `android/keystore/release.jks`（开发自签名，keystore 与密码都不入库）；
+keystore 不存在时脚本会用 `HDT_STORE_PASS` 生成一个。正式对外发布请替换为自己的
+keystore，并妥善保管密码。可用 `HDT_KEYSTORE` / `HDT_KEY_ALIAS` 指定其他路径与别名。
 
 ## 测试
 

@@ -506,5 +506,6 @@ Windows 可双击 `start.cmd`，Linux/macOS 运行 `./start.sh`；首次安装�
 ## Android 离线版（无需 Python）
 
 `android/` 目录把四个页面、营养引擎和本地存储打包成原生 WebView APK，运行时不需要
-Python、Flask 或任何后端服务。发布包为 `dist/HealthyDietTracker-1.0.0.apk.zip`，
-解压后安装其中的 APK；构建方法、架构说明与已知边界见 [`android/README.md`](android/README.md)。
+Python、Flask 或任何后端服务。构建脚本会在 `dist/` 生成
+`HealthyDietTracker-1.0.0.apk.zip`（构建产物不入库），解压后安装其中的 APK；构建方法、
+架构说明与已知边界见 [`android/README.md`](android/README.md)。

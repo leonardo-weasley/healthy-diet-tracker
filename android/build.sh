@@ -10,6 +10,7 @@
 #   ANDROID_SDK=/path/to/sdk
 #   ANDROID_BUILD_TOOLS=/path/to/build-tools/34.0.0
 #   ANDROID_PLATFORM=/path/to/platforms/android-34/android.jar
+#   HDT_STORE_PASS=<keystore password>   (required, never commit it)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,12 +23,18 @@ VERSION="1.0.0"
 OUT="${HDT_BUILD_DIR:-/tmp/hdt-apk-build}"
 DIST="$REPO/dist"
 APK_NAME="HealthyDietTracker-$VERSION.apk"
-KEYSTORE="$HERE/keystore/release.jks"
-STORE_PASS="hdt-release-2026"
-KEY_ALIAS="hdt"
+KEYSTORE="${HDT_KEYSTORE:-$HERE/keystore/release.jks}"
+STORE_PASS="${HDT_STORE_PASS:-}"
+KEY_ALIAS="${HDT_KEY_ALIAS:-hdt}"
 
 export JAVA_HOME
 export PATH="$JAVA_HOME/bin:$PATH"
+
+if [[ -z "$STORE_PASS" ]]; then
+  echo "HDT_STORE_PASS is not set (keystore password, kept out of git)." >&2
+  echo "  export HDT_STORE_PASS='your-keystore-password'" >&2
+  exit 1
+fi
 
 for tool in "$BUILD_TOOLS/aapt2" "$BUILD_TOOLS/d8" "$BUILD_TOOLS/zipalign" "$BUILD_TOOLS/apksigner"; do
   [[ -x "$tool" ]] || { echo "missing build tool: $tool" >&2; exit 1; }
@@ -81,15 +88,15 @@ if [[ ! -f "$KEYSTORE" ]]; then
     -keystore "$KEYSTORE" \
     -alias "$KEY_ALIAS" \
     -keyalg RSA -keysize 2048 -validity 10000 \
-    -storepass "$STORE_PASS" -keypass "$STORE_PASS" \
+    -storepass:env HDT_STORE_PASS -keypass:env HDT_STORE_PASS \
     -dname "CN=Healthy Diet Tracker, OU=Mobile, O=HDT, L=Shanghai, ST=Shanghai, C=CN" \
     >/dev/null 2>&1
 fi
 "$BUILD_TOOLS/apksigner" sign \
   --ks "$KEYSTORE" \
   --ks-key-alias "$KEY_ALIAS" \
-  --ks-pass "pass:$STORE_PASS" \
-  --key-pass "pass:$STORE_PASS" \
+  --ks-pass env:HDT_STORE_PASS \
+  --key-pass env:HDT_STORE_PASS \
   --v4-signing-enabled false \
   --out "$OUT/signed.apk" \
   "$OUT/aligned.apk"
