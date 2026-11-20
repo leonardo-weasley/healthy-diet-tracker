@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Confirm meal · Healthy Diet Tracker{% endblock %}
+
+{% block main_class %} result-page{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Confirm and save</p>
+    <h1>Confirm this meal</h1>
+    <p class="lead" id="result-lead">Review the foods and weights identified by AI. You can edit names and adjust weights before saving.</p>
+  </div>
+  <a class="back-link" href="/upload">← Upload again</a>
+</section>
+
+<div class="result-meta">
+  <span id="meal-type-badge" class="badge badge-primary">Lunch</span>
+  <span class="badge badge-neutral"><strong id="item-count">0</strong>&nbsp;foods</span>
+  <span id="result-meta-note" class="result-meta-note">Foods that were not recognized are highlighted and will be skipped when saving.</span>
+</div>
+
+<div id="result-error" class="alert alert-error" role="alert" hidden>
+  <span class="alert-icon" aria-hidden="true">!</span>
+  <div class="alert-body">
+    <strong class="alert-title">Save failed</strong>
+    <p id="result-error-text"></p>
+  </div>
+</div>
+
+<div id="result-warnings" class="alert alert-warning" role="status" hidden>
+  <span class="alert-icon" aria-hidden="true">!</span>
+  <div class="alert-body">
+    <strong class="alert-title" id="result-warning-title">AI is unsure about some items</strong>
+    <ul id="result-warning-list" class="alert-list"></ul>
+  </div>
+</div>
+
+<p id="unmatched-note" class="inline-note" hidden>
+  Foods marked "Unmatched" are not saved and do not count toward nutrition. Choose a standard food for each, or delete them.
+</p>
+
+<ul id="food-rows" class="food-list" aria-label="Identified foods"></ul>
+
+<div id="food-empty" class="empty-state" hidden>
+  <span class="empty-icon" aria-hidden="true">🔍</span>
+  <h3 id="food-empty-title">No foods identified</h3>
+  <p id="food-empty-text">Try a clearer photo that shows all the food, or add foods manually and pick standard entries.</p>
+  <div class="empty-actions">
+    <a class="btn btn-primary" href="/upload">Upload again</a>
+    <button id="empty-add-btn" class="btn btn-ghost" type="button">Add manually</button>
+  </div>
+</div>
+
+<div id="food-list-actions" class="food-list-actions">
+  <button id="add-food-btn" class="btn btn-ghost" type="button">＋ Add food</button>
+</div>
+
+<template id="food-row-template">
+  <li class="food-row">
+    <div class="food-row-head">
+      <span class="row-index" aria-hidden="true"></span>
+      <span class="tag tag-unknown" hidden>Unmatched</span>
+      <span class="row-spacer"></span>
+      <button type="button" class="btn btn-ghost btn-sm row-remove">Remove</button>
+    </div>
+
+    <div class="food-row-grid">
+      <label class="field">
+        <span class="field-label">Food name</span>
+        <input class="input food-name" type="text" maxlength="100" autocomplete="off" placeholder="e.g. White rice">
+        <span class="field-error field-error-name" hidden>Enter a food name</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Standard food <span class="field-label-note">used for nutrition</span></span>
+        <select class="input food-standard"></select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Weight (g)</span>
+        <input class="input food-weight" type="number" min="1" max="5000" step="1" inputmode="decimal" placeholder="e.g. 180">
+        <span class="field-error field-error-weight" hidden>Enter 1–5000 g</span>
+      </label>
+
+      <div class="field field-readonly">
+        <span class="field-label">AI confidence</span>
+        <span class="confidence-text">—</span>
+      </div>
+    </div>
+  </li>
+</template>
+
+<div class="save-bar">
+  <div class="save-bar-inner">
+    <div class="save-bar-info">
+      <p id="save-hint" class="save-hint" role="status" aria-live="polite">Reading recognition results…</p>
+      <p class="save-bar-sub">Nutrition values are calculated when you save.</p>
+    </div>
+    <button id="save-btn" class="btn btn-primary btn-lg" type="button" disabled>Save this meal</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/food-options.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/result.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,522 @@
+{
+  "schema_version": "1.0",
+  "source_note": "Values per 100 g edible portion. Fetched from USDA FoodData Central (Foundation / SR Legacy) on 2026-11-17; see each item's usda.fdc_id. Composite dishes without a single reliable USDA record keep local estimates (source=local).",
+  "foods": [
+    {
+      "food_name": "cooked_white_rice",
+      "display_name": "White rice (cooked)",
+      "calories_per_100g": 130,
+      "protein_per_100g": 2.69,
+      "carbs_per_100g": 28.2,
+      "fat_per_100g": 0.28,
+      "source": "USDA",
+      "aliases": [
+        "white_rice",
+        "rice",
+        "steamed_rice"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 168878,
+        "description": "Rice, white, long-grain, regular, enriched, cooked",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "brown_rice_cooked",
+      "display_name": "Brown rice (cooked)",
+      "calories_per_100g": 123,
+      "protein_per_100g": 2.74,
+      "carbs_per_100g": 25.6,
+      "fat_per_100g": 0.97,
+      "source": "USDA",
+      "aliases": [
+        "brown_rice"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 169704,
+        "description": "Rice, brown, long-grain, cooked (Includes foods for USDA's Food Distribution Program)",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "rice_chicken_bowl",
+      "display_name": "Chicken rice bowl",
+      "calories_per_100g": 180,
+      "protein_per_100g": 8.0,
+      "carbs_per_100g": 22.0,
+      "fat_per_100g": 6.0,
+      "source": "local",
+      "aliases": [],
+      "is_verified": 0
+    },
+    {
+      "food_name": "cooked_noodles",
+      "display_name": "Noodles (cooked)",
+      "calories_per_100g": 138,
+      "protein_per_100g": 4.54,
+      "carbs_per_100g": 25.2,
+      "fat_per_100g": 2.07,
+      "source": "USDA",
+      "aliases": [
+        "noodles",
+        "noodle"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 169732,
+        "description": "Noodles, egg, enriched, cooked",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "cooked_pasta",
+      "display_name": "Pasta (cooked)",
+      "calories_per_100g": 158,
+      "protein_per_100g": 5.8,
+      "carbs_per_100g": 30.9,
+      "fat_per_100g": 0.93,
+      "source": "USDA",
+      "aliases": [
+        "pasta"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 169737,
+        "description": "Pasta, cooked, enriched, without added salt",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "white_bread",
+      "display_name": "White bread",
+      "calories_per_100g": 263,
+      "protein_per_100g": 9.5,
+      "carbs_per_100g": 50,
+      "fat_per_100g": 2.84,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 2758993,
+        "description": "Bread, white, commercial",
+        "data_type": "Foundation",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "whole_wheat_bread",
+      "display_name": "Whole-wheat bread",
+      "calories_per_100g": 252,
+      "protein_per_100g": 12.4,
+      "carbs_per_100g": 42.7,
+      "fat_per_100g": 3.5,
+      "source": "USDA",
+      "aliases": [
+        "wheat_bread"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 172688,
+        "description": "Bread, whole-wheat, commercially prepared",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "oatmeal_cooked",
+      "display_name": "Oatmeal (cooked)",
+      "calories_per_100g": 71,
+      "protein_per_100g": 2.54,
+      "carbs_per_100g": 12,
+      "fat_per_100g": 1.52,
+      "source": "USDA",
+      "aliases": [
+        "oatmeal",
+        "porridge"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 173905,
+        "description": "Cereals, oats, regular and quick, unenriched, cooked with water (includes boiling and microwaving), without salt",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "grilled_chicken_breast",
+      "display_name": "Grilled chicken breast",
+      "calories_per_100g": 151,
+      "protein_per_100g": 30.5,
+      "carbs_per_100g": 0,
+      "fat_per_100g": 3.17,
+      "source": "USDA",
+      "aliases": [
+        "chicken_breast",
+        "grilled_chicken"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 171534,
+        "description": "Chicken, broiler or fryers, breast, skinless, boneless, meat only, cooked, grilled",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "beef_stir_fry",
+      "display_name": "Beef stir-fry",
+      "calories_per_100g": 250,
+      "protein_per_100g": 26.0,
+      "carbs_per_100g": 3.0,
+      "fat_per_100g": 15.0,
+      "source": "local",
+      "aliases": [
+        "stir_fried_beef"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "pork_belly_braised",
+      "display_name": "Braised pork belly",
+      "calories_per_100g": 518,
+      "protein_per_100g": 9.0,
+      "carbs_per_100g": 3.0,
+      "fat_per_100g": 53.0,
+      "source": "local",
+      "aliases": [
+        "braised_pork",
+        "braised_pork_belly"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "salmon_cooked",
+      "display_name": "Salmon (cooked)",
+      "calories_per_100g": 206,
+      "protein_per_100g": 22.1,
+      "carbs_per_100g": 0,
+      "fat_per_100g": 12.4,
+      "source": "USDA",
+      "aliases": [
+        "salmon"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 175168,
+        "description": "Fish, salmon, Atlantic, farmed, cooked, dry heat",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "shrimp_cooked",
+      "display_name": "Shrimp (cooked)",
+      "calories_per_100g": 119,
+      "protein_per_100g": 22.8,
+      "carbs_per_100g": 1.52,
+      "fat_per_100g": 1.7,
+      "source": "USDA",
+      "aliases": [
+        "shrimp",
+        "prawn"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 171971,
+        "description": "Crustaceans, shrimp, mixed species, cooked, moist heat (may contain additives to retain moisture)",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "boiled_egg",
+      "display_name": "Boiled egg",
+      "calories_per_100g": 155,
+      "protein_per_100g": 12.6,
+      "carbs_per_100g": 1.12,
+      "fat_per_100g": 10.6,
+      "source": "USDA",
+      "aliases": [
+        "egg",
+        "hard_boiled_egg"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 173424,
+        "description": "Egg, whole, cooked, hard-boiled",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "fried_egg",
+      "display_name": "Fried egg",
+      "calories_per_100g": 196,
+      "protein_per_100g": 13.6,
+      "carbs_per_100g": 0.83,
+      "fat_per_100g": 14.8,
+      "source": "USDA",
+      "aliases": [
+        "pan_fried_egg"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 173423,
+        "description": "Egg, whole, cooked, fried",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "tofu_firm",
+      "display_name": "Firm tofu",
+      "calories_per_100g": 144,
+      "protein_per_100g": 17.3,
+      "carbs_per_100g": 2.78,
+      "fat_per_100g": 8.72,
+      "source": "USDA",
+      "aliases": [
+        "tofu"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 172475,
+        "description": "Tofu, raw, firm, prepared with calcium sulfate",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "steamed_broccoli",
+      "display_name": "Steamed broccoli",
+      "calories_per_100g": 35,
+      "protein_per_100g": 2.38,
+      "carbs_per_100g": 7.18,
+      "fat_per_100g": 0.41,
+      "source": "USDA",
+      "aliases": [
+        "broccoli"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 169967,
+        "description": "Broccoli, cooked, boiled, drained, without salt",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "boiled_potato",
+      "display_name": "Boiled potato",
+      "calories_per_100g": 87,
+      "protein_per_100g": 1.87,
+      "carbs_per_100g": 20.1,
+      "fat_per_100g": 0.1,
+      "source": "USDA",
+      "aliases": [
+        "potato"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 170438,
+        "description": "Potatoes, boiled, cooked in skin, flesh, without salt",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "french_fries",
+      "display_name": "French fries",
+      "calories_per_100g": 312,
+      "protein_per_100g": 3.43,
+      "carbs_per_100g": 41.4,
+      "fat_per_100g": 14.7,
+      "source": "USDA",
+      "aliases": [
+        "fries"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 170698,
+        "description": "Fast foods, potato, french fried in vegetable oil",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "lettuce",
+      "display_name": "Lettuce",
+      "calories_per_100g": 17,
+      "protein_per_100g": 1.23,
+      "carbs_per_100g": 3.29,
+      "fat_per_100g": 0.3,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 169247,
+        "description": "Lettuce, cos or romaine, raw",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "tomato",
+      "display_name": "Tomato",
+      "calories_per_100g": 18,
+      "protein_per_100g": 0.88,
+      "carbs_per_100g": 3.89,
+      "fat_per_100g": 0.2,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 170457,
+        "description": "Tomatoes, red, ripe, raw, year round average",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "cucumber",
+      "display_name": "Cucumber",
+      "calories_per_100g": 15.9,
+      "protein_per_100g": 0.62,
+      "carbs_per_100g": 2.95,
+      "fat_per_100g": 0.18,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 2346406,
+        "description": "Cucumber, with peel, raw",
+        "data_type": "Foundation",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "milk_whole",
+      "display_name": "Whole milk",
+      "calories_per_100g": 60,
+      "protein_per_100g": 3.27,
+      "carbs_per_100g": 4.63,
+      "fat_per_100g": 3.2,
+      "source": "USDA",
+      "aliases": [
+        "milk",
+        "whole_milk"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 746782,
+        "description": "Milk, whole, 3.25% milkfat, with added vitamin D",
+        "data_type": "Foundation",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "plain_yogurt",
+      "display_name": "Plain yogurt",
+      "calories_per_100g": 78,
+      "protein_per_100g": 3.82,
+      "carbs_per_100g": 5.57,
+      "fat_per_100g": 4.48,
+      "source": "USDA",
+      "aliases": [
+        "yogurt"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 2259793,
+        "description": "Yogurt, plain, whole milk",
+        "data_type": "Foundation",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "banana",
+      "display_name": "Banana",
+      "calories_per_100g": 89,
+      "protein_per_100g": 1.09,
+      "carbs_per_100g": 22.8,
+      "fat_per_100g": 0.33,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 173944,
+        "description": "Bananas, raw",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "apple",
+      "display_name": "Apple",
+      "calories_per_100g": 52,
+      "protein_per_100g": 0.26,
+      "carbs_per_100g": 13.8,
+      "fat_per_100g": 0.17,
+      "source": "USDA",
+      "aliases": [],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 171688,
+        "description": "Apples, raw, with skin (Includes foods for USDA's Food Distribution Program)",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    },
+    {
+      "food_name": "vegetable_soup",
+      "display_name": "Vegetable soup",
+      "calories_per_100g": 30,
+      "protein_per_100g": 1.5,
+      "carbs_per_100g": 4.0,
+      "fat_per_100g": 0.8,
+      "source": "local",
+      "aliases": [
+        "veggie_soup"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "milk_tea",
+      "display_name": "Milk tea",
+      "calories_per_100g": 90,
+      "protein_per_100g": 1.0,
+      "carbs_per_100g": 16.0,
+      "fat_per_100g": 2.5,
+      "source": "local",
+      "aliases": [
+        "bubble_tea"
+      ],
+      "is_verified": 0
+    },
+    {
+      "food_name": "cola",
+      "display_name": "Cola",
+      "calories_per_100g": 42,
+      "protein_per_100g": 0,
+      "carbs_per_100g": 10.4,
+      "fat_per_100g": 0.25,
+      "source": "USDA",
+      "aliases": [
+        "coke"
+      ],
+      "is_verified": 1,
+      "usda": {
+        "fdc_id": 174852,
+        "description": "Beverages, carbonated, cola, regular",
+        "data_type": "SR Legacy",
+        "fetched_at": "2026-11-17"
+      }
+    }
+  ]
+}
