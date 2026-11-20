@@ -1,14 +1,32 @@
 # Healthy Diet Tracker · 健康饮食追踪器
 
-| 版本 | 许可证 | Python | 状态 |
-|---|---|---|---|
-| 1.0.0 | [MIT](LICENSE) | ≥ 3.11 | 课程项目 MVP |
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?label=License" alt="License: MIT"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg?label=Python" alt="Python 3.11+"></a>
+  <a href="https://flask.palletsprojects.com/"><img src="https://img.shields.io/badge/framework-Flask%203.x-000.svg?label=Flask" alt="Flask 3.x"></a>
+  <a href="https://pytest.org/"><img src="https://img.shields.io/badge/tests-184%20passed-brightgreen.svg?label=Tests" alt="Tests 184 passed"></a>
+  <a href="android/"><img src="https://img.shields.io/badge/android-APK%201.1.0-green.svg?label=Android" alt="Android APK 1.1.0"></a>
+  <a href="variants/hdt-en-1.1.0/"><img src="https://img.shields.io/badge/variant-English-9cf.svg?label=English" alt="English variant"></a>
+</p>
 
-一个在**本地浏览器**运行的个人饮食追踪应用：上传一张餐食照片 → 多模态 AI 识别食物并估算份量 → **我们自己的 Python 算法**查本地营养库计算卡路里与宏量营养素 → 用户确认/修正 → 存入本地 SQLite → 仪表盘查看每日与历史统计。
+<p align="center">
+  <b>上传一张餐食照片 → 多模态 AI 识别食物并估算份量 → 本地 Python 算法查本地营养库计算卡路里与宏量营养素 → 用户确认/修正 → 存入本地 SQLite → 仪表盘查看每日与历史统计。</b>
+</p>
 
-- 团队：5 名大学生开发者，6 周
-- 形态：本地 Web 应用（`http://127.0.0.1:5000`），单机单用户
-- 用途：课程项目 / 个人记录，**所有营养数值都是估算值，不得当作医学营养测量**
+<table>
+  <tr>
+    <td><b>形态</b></td>
+    <td>本地 Web 应用（<code>http://127.0.0.1:5000</code>），单机单用户，无 Gradle、无 AndroidX、无前端构建工具</td>
+  </tr>
+  <tr>
+    <td><b>团队</b></td>
+    <td>5 名大学生开发者，6 周课程项目 MVP</td>
+  </tr>
+  <tr>
+    <td><b>用途</b></td>
+    <td>课程项目 / 个人记录，<b>所有营养数值都是估算值，不得当作医学营养测量</b></td>
+  </tr>
+</table>
 
 ---
 
@@ -26,7 +44,7 @@
 
 > **AI 只负责"是什么、大概多重"，绝不负责"多少卡路里"。**
 
-所有营养计算都由我们自己的纯函数完成。这样做的原因：
+所有营养计算都由我们自己的纯函数完成。
 
 | 原因 | 说明 |
 |---|---|
@@ -39,11 +57,11 @@
 
 ## 2. 主要功能
 
-| 功能 | 说明 | MVP 级别 |
+| 功能 | 说明 | 级别 |
 |---|---|---|
 | 餐食照片上传 | JPEG/PNG/WebP，≤ 8 MB，带预览与餐型选择 | 必须 |
 | AI 食物识别 | 返回结构化 JSON：食物名、估算重量、置信度 | 必须 |
-| 营养计算 | 查本地 20–30 条食物库，算卡路里/蛋白/碳水/脂肪 | 必须 |
+| 营养计算 | 查本地食物库，算卡路里/蛋白/碳水/脂肪 | 必须 |
 | 结果人工修正 | 保存前可改食物名与重量，后端**重新计算** | 必须 |
 | 餐食日记 | 保存到 SQLite，含营养快照 | 必须 |
 | 每日仪表盘 | 今日卡路里、目标进度、宏量营养素、最近餐食 | 必须 |
@@ -80,7 +98,7 @@
 
 ## 4. 架构概览
 
-```
+```text
 浏览器（HTML/CSS/JS + Chart.js）
         │ HTTP + JSON / multipart
         ▼
@@ -115,11 +133,13 @@ DeepSeek / mock   本地 JSON 营养库   SQLite
 | [`docs/00_MAIN_TECHNICAL_ROUTE.md`](docs/00_MAIN_TECHNICAL_ROUTE.md) | **全员** | 权威技术规范：架构、契约、6 个端点、7 个函数签名、错误码、Git 流程、里程碑、验收标准 |
 | [`docs/01_BACKEND_DEVELOPER.md`](docs/01_BACKEND_DEVELOPER.md) | 成员1 | Flask 应用工厂、6 个路由、服务编排、上传校验、错误翻译 |
 | [`docs/02_AI_INTEGRATION_DEVELOPER.md`](docs/02_AI_INTEGRATION_DEVELOPER.md) | 成员2 | 供应商接入、提示词、JSON 输出、Pydantic 校验、超时重试、mock |
-| [`docs/03_NUTRITION_ENGINE_DEVELOPER.md`](docs/03_NUTRITION_ENGINE_DEVELOPER.md) | 成员3 | 食物库格式与 29 条初始数据、匹配策略、计算公式、取整、单测 |
+| [`docs/03_NUTRITION_ENGINE_DEVELOPER.md`](docs/03_NUTRITION_ENGINE_DEVELOPER.md) | 成员3 | 食物库格式与初始数据、匹配策略、计算公式、取整、单测 |
 | [`docs/04_FRONTEND_DEVELOPER.md`](docs/04_FRONTEND_DEVELOPER.md) | 成员4 | 四个页面、元素 id、Fetch 封装、加载/错误/空状态、Chart.js |
 | [`docs/05_DATABASE_AND_TESTING_DEVELOPER.md`](docs/05_DATABASE_AND_TESTING_DEVELOPER.md) | 成员5 | 三张表、SQLAlchemy 模型、仓储函数、聚合查询、测试体系 |
 | [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md) | **全员** | 许可证、第三方声明、数据来源与文档一致性说明 |
 | [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | **全员** | 依赖、CDN 库、外部服务与数据集的许可信息 |
+| [`android/BUILD_HANDOFF.md`](android/BUILD_HANDOFF.md) | 构建机 | Android APK 无 Gradle 构建全流程：环境变量、签名、自检、CI 要点 |
+| [`variants/README.md`](variants/README.md) | 变体构建 | 英文 1.1.0 源码快照归档、差异与独立构建说明 |
 
 **推荐的阅读顺序**
 
@@ -224,8 +244,7 @@ BACKEND_MODE=real
 DATABASE_URL=sqlite:///diet_tracker.db
 ```
 
-**没有 Key 也能完整跑通**：仓库自带 `scripts/mock_ai_provider.py`，它实现
-`POST /v1/chat/completions`，按图片内容稳定返回一份契约 A 的识别结果。把 `.env` 指向它即可：
+**没有 Key 也能完整跑通**：仓库自带 `scripts/mock_ai_provider.py`，它实现 `POST /v1/chat/completions`，按图片内容稳定返回一份契约 A 的识别结果。把 `.env` 指向它即可：
 
 ```dotenv
 AI_API_KEY=mock-local-key
@@ -233,18 +252,16 @@ AI_BASE_URL=http://127.0.0.1:5100/v1
 AI_MODEL=mock-vision
 ```
 
-> 模拟服务只用于开发联调，不产生真实识别；换回真实 Key 时只改这三行。
-> `AI_MODEL` 的具体型号以供应商文档为准。
+> 模拟服务只用于开发联调，不产生真实识别；换回真实 Key 时只改这三行。`AI_MODEL` 的具体型号以供应商文档为准。
 
 ### 7.4 初始化数据库与食物库
 
 ```bash
 python scripts/init_db.py      # 建三张表（instance/diet_tracker.db）
-python scripts/seed_foods.py   # 导入 29 条食物（幂等，可重复跑）
+python scripts/seed_foods.py   # 导入食物（幂等，可重复跑）
 ```
 
-食物库的每 100 g 营养值来自 **USDA FoodData Central**（Foundation / SR Legacy），
-每条都记录了 `usda.fdc_id`。需要重新拉取时：
+食物库的每 100 g 营养值来自 **USDA FoodData Central**（Foundation / SR Legacy），每条都记录了 `usda.fdc_id`。需要重新拉取时：
 
 ```bash
 python scripts/fetch_usda_foods.py            # 有缓存，重复运行不会重复请求
@@ -295,19 +312,26 @@ healthy-diet-tracker/
 ├── README.md                   # 本文件
 │
 ├── docs/                       # 全部规范文档（见 §5）
+│   ├── 00_MAIN_TECHNICAL_ROUTE.md
+│   ├── 01_BACKEND_DEVELOPER.md
+│   ├── 02_AI_INTEGRATION_DEVELOPER.md
+│   ├── 03_NUTRITION_ENGINE_DEVELOPER.md
+│   ├── 04_FRONTEND_DEVELOPER.md
+│   ├── 05_DATABASE_AND_TESTING_DEVELOPER.md
+│   └── COMPLIANCE.md
 │
 ├── app/
 │   ├── __init__.py             # create_app()
 │   ├── config.py               # 配置
 │   ├── extensions.py           # db = SQLAlchemy()
-│   ├── routes/                 # HTTP 路由（成员1）
-│   ├── services/               # 服务编排（成员1）
-│   ├── ai/                     # AI 识别（成员2）
-│   ├── nutrition/              # 营养引擎（成员3）
-│   ├── database/               # 模型与仓储（成员5）
-│   ├── utils/                  # errors / images / timeutil（成员1）
-│   ├── templates/              # base + 4 个页面 + 占位页（成员4）
-│   └── static/                 # CSS + JS（成员4）
+│   ├── routes/                 # HTTP 路由
+│   ├── services/               # 服务编排
+│   ├── ai/                     # AI 识别
+│   ├── nutrition/              # 营养引擎
+│   ├── database/               # 模型与仓储
+│   ├── utils/                  # errors / images / timeutil
+│   ├── templates/              # base + 页面 + 占位页
+│   └── static/                 # CSS + JS
 │
 ├── tests/
 │   ├── conftest.py             # 夹具
@@ -324,6 +348,18 @@ healthy-diet-tracker/
 │   ├── start_dev.py            # 一键启动（建库 + mock + 应用）
 │   └── evaluate_portions.py    # 选做：MAPE 实验
 │
+├── android/                    # 无 Gradle 原生 WebView APK（见 §10）
+│   ├── build.sh
+│   ├── BUILD_HANDOFF.md
+│   ├── tools/build_www.py
+│   ├── app/src/main/...
+│   └── web/...
+│
+├── variants/                   # 非主线源码快照（不参与主线构建）
+│   └── hdt-en-1.1.0/           # 英文 1.1.0 独立工程
+│       ├── android/            # 版本 2 / 1.1.0，英文 UI
+│       └── app/
+│
 ├── instance/                   # SQLite 文件（Git 忽略）
 └── uploads/                    # 上传图片（Git 忽略）
 ```
@@ -338,7 +374,7 @@ healthy-diet-tracker/
 |---|---|---|---|
 | 1 | 团队负责人 / 后端集成 | `app/routes/**`、`app/services/**`、`app/__init__.py`、`app/utils/**` | 一个能跑的 Flask 应用 + 六个接口 + 统一错误处理 |
 | 2 | AI 集成 | `app/ai/**` | 照片 → 契约 A 的 JSON，失败能降级 |
-| 3 | 营养引擎 | `app/nutrition/**` | 20+ 食物库 + 计算模块 + 单测 |
+| 3 | 营养引擎 | `app/nutrition/**` | 食物库 + 计算模块 + 单测 |
 | 4 | 前端 | `app/templates/**`、`app/static/**` | 四个页面 + 图表 + 四态处理 |
 | 5 | 数据库与测试 | `app/database/**`、`app/extensions.py`、`scripts/`、`tests/conftest.py` | 三张表 + 仓储函数 + 测试体系 |
 
@@ -369,8 +405,7 @@ healthy-diet-tracker/
 | `develop-test-branch` | 当前集成分支，随时可运行 |
 | `feature/<模块>` | 个人开发分支 |
 
-> 早期技术文档（`docs/00`–`05`）把集成分支简称为 `develop`；本仓库实际分支名为
-> `develop-test-branch`，执行文中命令时请按实际分支名替换。
+> 早期技术文档（`docs/00`–`05`）把集成分支简称为 `develop`；本仓库实际分支名为 `develop-test-branch`，执行文中命令时请按实际分支名替换。
 
 ### 11.2 提交流程
 
@@ -468,44 +503,57 @@ Thumbs.db
 
 本项目以 **MIT License** 发布，全文见 [`LICENSE`](LICENSE)。
 
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT"></a>
+</p>
+
 - 第三方 Python 包、CDN 库、外部服务与数据集的许可信息：见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 - 合规检查与文档一致性说明：见 [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md)
 - 引用本项目时使用 [`CITATION.cff`](CITATION.cff)（GitHub 仓库页会显示 "Cite this repository"）
 
+---
+
 ## 15. 致谢
 
 - **USDA FoodData Central**（[fdc.nal.usda.gov](https://fdc.nal.usda.gov/)）
-  提供 24 条食物的每 100 g 营养参考值。该数据集为美国联邦政府作品（公有领域），
-  本项目在 `app/nutrition/food_database.json` 中逐条保留 `usda.fdc_id` 与抓取日期。
-  引用格式见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) §4.1。
+  提供食物的每 100 g 营养参考值。该数据集为美国联邦政府作品（公有领域），本项目在 `app/nutrition/food_database.json` 中逐条保留 `usda.fdc_id` 与抓取日期。引用格式见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) §4.1。
 - **DeepSeek**（[platform.deepseek.com](https://platform.deepseek.com/)）
   提供 OpenAI 兼容的多模态接口，用于食物识别与份量估算。
 - **Chart.js**（[chartjs.org](https://www.chartjs.org/)，MIT）
   提供仪表盘图表，经 jsDelivr CDN 引入。
 - **Flask、Flask-SQLAlchemy、SQLAlchemy、Pydantic、Pillow、python-dotenv、pytest、tzdata**
   构成本项目的运行与测试基础，许可条款见 `THIRD_PARTY_NOTICES.md`。
-- **课程团队成员**：后端集成、AI 集成、营养引擎、前端、数据库与测试五个角色共同完成。
-  具体提交记录见 GitHub 仓库的 Contributors 页面。
+- **课程团队成员**：后端集成、AI 集成、营养引擎、前端、数据库与测试五个角色共同完成。具体提交记录见 GitHub 仓库的 Contributors 页面。
 
 > 本项目为课程作业，与上述机构无隶属、赞助或背书关系。
 > 所有营养数值均为估算值，不得用于医疗、疾病管理或专业营养干预（见 §13）。
 
+---
 
-## 联调与交付状态
+## 16. Android 离线版（无需 Python）
+
+`android/` 目录把四个页面、营养引擎和本地存储打包成原生 WebView APK，运行时不需要 Python、Flask 或任何后端服务。构建脚本会在 `dist/` 生成 `HealthyDietTracker-1.0.0.apk.zip`（构建产物不入库），解压后安装其中的 APK；构建方法、架构说明与已知边界见 [`android/BUILD_HANDOFF.md`](android/BUILD_HANDOFF.md)。
+
+英语变体（版本 2 / 1.1.0，独立工程，不参与主线构建）见 [`variants/hdt-en-1.1.0/`](variants/hdt-en-1.1.0/)，构建说明见 [`variants/README.md`](variants/README.md)。
+
+---
+
+## 17. 联调与交付状态
 
 当前分支已完成四个页面、6 个 API、营养引擎和 SQLite 仓储的整合：
 
 - `BACKEND_MODE=real` 为默认值，数据写入 `instance/diet_tracker.db`，上传图片落在 `uploads/YYYY/MM/`；
-- 29 条食物营养值由 `scripts/fetch_usda_foods.py` 从 USDA FoodData Central 拉取并写入 `app/nutrition/food_database.json`，每条带 `usda.fdc_id`；
+- 食物营养值由 `scripts/fetch_usda_foods.py` 从 USDA FoodData Central 拉取并写入 `app/nutrition/food_database.json`，每条带 `usda.fdc_id`；
 - 无真实 Key 时，`scripts/mock_ai_provider.py` 提供 OpenAI 兼容的本地视觉接口，`start_dev.py` 会自动拉起；
 - 184 个测试全部通过（含页面接线与 mock 契约测试），端到端流程（上传 → 识别 → 修正 → 保存 → 仪表盘 → 历史 → 删除）已实际跑通。
 
 Windows 可双击 `start.cmd`，Linux/macOS 运行 `./start.sh`；首次安装依赖需要联网。
+
 后端细节见 `docs/BACKEND_HANDOFF.md`，本次整合记录见 `docs/INTEGRATION_REPORT.md`。
 
-## Android 离线版（无需 Python）
+---
 
-`android/` 目录把四个页面、营养引擎和本地存储打包成原生 WebView APK，运行时不需要
-Python、Flask 或任何后端服务。构建脚本会在 `dist/` 生成
-`HealthyDietTracker-1.0.0.apk.zip`（构建产物不入库），解压后安装其中的 APK；构建方法、
-架构说明与已知边界见 [`android/README.md`](android/README.md)。
+<div align="center">
+  <b>Healthy Diet Tracker</b> · 健康饮食追踪器<br>
+  MIT Licensed · 课程项目 MVP · 2026
+</div>
