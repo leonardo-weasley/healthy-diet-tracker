@@ -16,6 +16,9 @@
   var REPO_URL = "https://github.com/leonardo-weasley/healthy-diet-tracker";
   var SETTINGS_KEY = "hdt.settings";
   var SPLASH_KEY = "hdt.splashImage";
+  var CUSTOM_FOODS_KEY = "hdt.customFoods";
+  var SECRET_AI_KEY = "aiApiKey";
+  var SECRET_USDA_KEY = "usdaApiKey";
 
   var Core = window.HDTCore;
   var MEAL_TYPES = Core.MEAL_TYPES;
@@ -38,6 +41,7 @@
     model: PRESETS.qwen.model,
     apiKey: "",
     timeoutMs: 60000,
+    usdaApiKey: "DEMO_KEY",
   };
 
   /* ------------------------------ 小工具 ------------------------------ */
@@ -51,7 +55,6 @@
     if (attrs) {
       Object.keys(attrs).forEach(function (key) {
         if (key === "text") node.textContent = attrs[key];
-        else if (key === "html") node.innerHTML = attrs[key];
         else if (key === "class") node.className = attrs[key];
         else if (key === "style") node.setAttribute("style", attrs[key]);
         else if (key.indexOf("on") === 0 && typeof attrs[key] === "function") {
@@ -120,6 +123,63 @@
   }
   ApiError.prototype = Object.create(Error.prototype);
   ApiError.prototype.constructor = ApiError;
+
+  /* ------------------------- 自定义 USDA 食物 ------------------------- */
+
+  function readCustomFoods() {
+    try {
+      var raw = localStorage.getItem(CUSTOM_FOODS_KEY);
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter(function (food) {
+        return food && typeof food.food_name === "string" && food.food_name;
+      }) : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function mergeCustomFoods(customFoods) {
+    var base = window.HDT_FOOD_DB || { foods: [] };
+    var customNames = {};
+    customFoods.forEach(function (food) { customNames[food.food_name] = true; });
+    var foods = (base.foods || []).filter(function (food) {
+      return !customNames[food.food_name];
+    }).concat(customFoods);
+    window.HDT_FOOD_DB = Object.assign({}, base, { foods: foods });
+
+    var options = (Array.isArray(window.FOOD_OPTIONS) ? window.FOOD_OPTIONS : []).filter(function (option) {
+      return !customNames[option.food_name];
+    });
+    customFoods.forEach(function (food) {
+      options.push({ food_name: food.food_name, label: food.display_name || food.food_name });
+    });
+    window.FOOD_OPTIONS = options;
+  }
+
+  function getCustomFoods() {
+    return readCustomFoods();
+  }
+
+  function registerCustomFood(food) {
+    if (!food || typeof food.food_name !== "string" || !food.food_name) {
+      return null;
+    }
+    var list = readCustomFoods().filter(function (item) {
+      return item.food_name !== food.food_name;
+    });
+    list.push(food);
+    if (list.length > 200) list = list.slice(list.length - 200);
+    try {
+      localStorage.setItem(CUSTOM_FOODS_KEY, JSON.stringify(list));
+    } catch (err) {
+      hdtToast("自定义食物保存失败，本次仍可使用。", "warning");
+    }
+    mergeCustomFoods(list);
+    return food;
+  }
+
+  // Load before any page script calls the local API.
+  mergeCustomFoods(readCustomFoods());
 
   /* --------------------------- IndexedDB --------------------------- */
 
@@ -218,8 +278,46 @@
 
   /* ------------------------------ 设置 ------------------------------ */
 
+  function secretStoreAvailable() {
+    return !!(window.AndroidHost
+      && typeof window.AndroidHost.getSecret === "function"
+      && typeof window.AndroidHost.setSecret === "function");
+  }
+
+  function secretGet(name) {
+    try {
+      return secretStoreAvailable() ? String(window.AndroidHost.getSecret(name) || "") : "";
+    } catch (err) {
+      return "";
+    }
+  }
+
+  function secretSet(name, value) {
+    try {
+      return secretStoreAvailable()
+        ? window.AndroidHost.setSecret(name, value) === true
+        : false;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function scrubLegacySecret(name) {
+    try {
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || !(name in parsed)) return;
+      parsed[name] = "";
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(parsed));
+    } catch (err) {
+      /* localStorage 不可用时保留旧值，不影响本次启动 */
+    }
+  }
+
   function loadSettings() {
     var settings = Object.assign({}, DEFAULT_SETTINGS);
+    var legacy = { apiKey: "", usdaApiKey: "" };
     try {
       var raw = localStorage.getItem(SETTINGS_KEY);
       if (raw) {
@@ -227,15 +325,59 @@
         Object.keys(DEFAULT_SETTINGS).forEach(function (key) {
           if (parsed[key] !== undefined && parsed[key] !== null) settings[key] = parsed[key];
         });
+        if (typeof parsed.apiKey === "string") legacy.apiKey = parsed.apiKey;
+        if (typeof parsed.usdaApiKey === "string") legacy.usdaApiKey = parsed.usdaApiKey;
       }
     } catch (err) {
       /* 配置损坏时使用默认值 */
     }
+
+    // Keys live in Android Keystore; migrate plaintext values written by older builds.
+    var storedAi = secretGet(SECRET_AI_KEY);
+    var storedUsda = secretGet(SECRET_USDA_KEY);
+    if (!storedAi && legacy.apiKey && secretSet(SECRET_AI_KEY, legacy.apiKey)) {
+      storedAi = legacy.apiKey;
+      scrubLegacySecret("apiKey");
+    }
+    if (!storedUsda && legacy.usdaApiKey
+        && legacy.usdaApiKey !== DEFAULT_SETTINGS.usdaApiKey
+        && secretSet(SECRET_USDA_KEY, legacy.usdaApiKey)) {
+      storedUsda = legacy.usdaApiKey;
+      scrubLegacySecret("usdaApiKey");
+    }
+
+    settings.apiKey = storedAi || legacy.apiKey || "";
+    if (storedUsda) settings.usdaApiKey = storedUsda;
+    else if (legacy.usdaApiKey) settings.usdaApiKey = legacy.usdaApiKey;
+    if (!settings.usdaApiKey) settings.usdaApiKey = DEFAULT_SETTINGS.usdaApiKey;
     return settings;
   }
 
   function persistSettings(settings) {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    var stored = Object.assign({}, settings);
+
+    if (secretStoreAvailable()) {
+      // Never fall back to plaintext on Android: if the Keystore write fails the save fails.
+      if (!secretSet(SECRET_AI_KEY, settings.apiKey || "")) {
+        throw new Error("无法写入本机安全存储，请重试。");
+      }
+      stored.apiKey = "";
+
+      var usda = settings.usdaApiKey || "";
+      if (usda === DEFAULT_SETTINGS.usdaApiKey) {
+        if (!secretSet(SECRET_USDA_KEY, "")) {
+          throw new Error("无法写入本机安全存储，请重试。");
+        }
+        stored.usdaApiKey = DEFAULT_SETTINGS.usdaApiKey;
+      } else {
+        if (!secretSet(SECRET_USDA_KEY, usda)) {
+          throw new Error("无法写入本机安全存储，请重试。");
+        }
+        stored.usdaApiKey = "";
+      }
+    }
+
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(stored));
   }
 
   function chatUrl(endpoint) {
@@ -350,6 +492,14 @@
   }
 
   function requestCompletion(settings, imageDataUrl) {
+    if (!/^https:\/\//i.test(settings.endpoint || "")) {
+      return Promise.reject(new ApiError(
+        "AI_PROVIDER_ERROR",
+        "出于安全考虑，API 地址必须使用 https://。请到 API 设置里修改。",
+        400,
+        { reason: "insecure_endpoint" }
+      ));
+    }
     if (window.AndroidHost && typeof window.AndroidHost.chat === "function") {
       return nativeChat(settings, imageDataUrl);
     }
@@ -771,14 +921,18 @@
       field("模型名称", modelInput),
       field("API Key", el("div", { class: "hdt-input-wrap" }, [keyInput, reveal])),
       field("请求超时（秒）", timeoutInput),
-      el("p", { class: "hdt-note", text: "支持任何 OpenAI 兼容的 /chat/completions 视觉接口。请求由原生网络层直接发出，不经过本应用的服务器；Key 保存在本机 localStorage，可在关于页随时修改。" }),
+      field("USDA API Key（可选，用于未匹配食物检索）", el("input", {
+        id: "hdt-usda-key", type: "password", autocomplete: "off",
+        placeholder: "DEMO_KEY", value: settings.usdaApiKey || "DEMO_KEY",
+      })),
+      el("p", { class: "hdt-note", text: "支持任何 OpenAI 兼容的 /chat/completions 视觉接口。请求由原生网络层直接发出，不经过本应用的服务器；API Key 与 USDA Key 由 Android Keystore 加密保存（仅本机可解密），不会写入 localStorage；API 地址等非敏感设置仍保存在本机。出于安全考虑，API 地址必须使用 https://。USDA API Key 仅用于未匹配食物的检索，留空则使用 DEMO_KEY（有速率限制）。" }),
       status,
     ]);
 
     function collect() {
       var endpoint = endpointInput.value.trim();
-      if (!/^https?:\/\//i.test(endpoint)) {
-        throw new Error("API 地址需要以 http:// 或 https:// 开头");
+      if (!/^https:\/\//i.test(endpoint)) {
+        throw new Error("为了安全，API 地址必须使用 https://（不支持明文 http）。");
       }
       var timeout = Number(timeoutInput.value) || 60;
       timeout = Math.max(10, Math.min(180, timeout));
@@ -788,6 +942,9 @@
         model: modelInput.value.trim(),
         apiKey: keyInput.value.trim(),
         timeoutMs: Math.round(timeout * 1000),
+        usdaApiKey: (document.getElementById("hdt-usda-key") || {}).value
+          ? document.getElementById("hdt-usda-key").value.trim() || "DEMO_KEY"
+          : (settings.usdaApiKey || "DEMO_KEY"),
       };
     }
 
@@ -1026,7 +1183,7 @@
       el("h3", { text: "数据与隐私" }),
       el("ul", {}, [
         el("li", { text: "餐食记录保存在本机 IndexedDB，卸载应用后清除，不会同步到任何服务器。" }),
-        el("li", { text: "API Key、API 地址与开屏图片保存在本机 localStorage，仅用于你配置的接口。" }),
+        el("li", { text: "API Key 与 USDA Key 由 Android Keystore 加密保存在本机；API 地址、开屏图片等设置保存在 localStorage，仅用于你配置的接口。" }),
         el("li", { text: "只有点击“分析照片”时，才会把压缩后的照片与提示词发送到你配置的 AI 接口。" }),
         el("li", { text: "营养数值为估算值，不能替代医疗或专业营养建议。" }),
       ]),
@@ -1172,6 +1329,11 @@
   }
 
   function init() {
+    // Migrate any plaintext keys left by older builds into Android Keystore right away.
+    loadSettings();
+    // food-options.js is deferred and may load after this file; re-apply saved foods
+    // so the standard-food selects include USDA entries registered in earlier sessions.
+    mergeCustomFoods(readCustomFoods());
     checkRuntime();
     mountMenuButton();
     mountCameraActions();
@@ -1191,5 +1353,12 @@
     openSplash: openSplashModal,
     calculateMeal: calculateMeal,
     matchFood: function (name) { return Core.matchFood(window.HDT_FOOD_DB || { foods: [] }, name); },
+    getCustomFoods: getCustomFoods,
+    registerCustomFood: registerCustomFood,
+    toast: hdtToast,
+    openModal: openModal,
+    closeModal: closeModal,
+    el: el,
+    button: button,
   };
 })();

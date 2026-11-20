@@ -12,16 +12,19 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 /**
  * Native bridge for OpenAI-compatible vision requests.
@@ -31,40 +34,139 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class AiBridge {
 
+    /** Hard cap so a hostile or misconfigured endpoint cannot exhaust the heap. */
+    private static final int MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+
     private final Activity activity;
     private final WebView webView;
+    private final Supplier<String> pageUrlSupplier;
+    private final String allowedOrigin;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public AiBridge(Activity activity, WebView webView) {
+    public AiBridge(Activity activity, WebView webView,
+                    Supplier<String> pageUrlSupplier, String allowedOrigin) {
         this.activity = activity;
         this.webView = webView;
+        this.pageUrlSupplier = pageUrlSupplier;
+        this.allowedOrigin = allowedOrigin;
+    }
+
+    /**
+     * The JS interface is injected into every frame. Only the app's own main document may
+     * call it; remote/embedded documents must not be able to use the native HTTP proxy.
+     */
+    private boolean isTrustedCall() {
+        String url = pageUrlSupplier == null ? null : pageUrlSupplier.get();
+        return url != null
+                && (url.equals(allowedOrigin) || url.startsWith(allowedOrigin + "/"));
     }
 
     @JavascriptInterface
     public void chat(String requestId, String endpoint, String apiKey, String model,
                      String imageDataUrl, String prompt, String timeoutMs) {
+        if (!isTrustedCall()) {
+            return;
+        }
         submit(requestId, endpoint, apiKey, model, imageDataUrl, prompt, timeoutMs, false);
     }
 
     @JavascriptInterface
     public void test(String requestId, String endpoint, String apiKey, String model, String timeoutMs) {
+        if (!isTrustedCall()) {
+            return;
+        }
         submit(requestId, endpoint, apiKey, model, null,
                 "Reply with the single word OK.", timeoutMs, true);
     }
 
+    /**
+     * Search USDA FoodData Central from the native layer (avoids WebView CORS).
+     * Results are delivered to {@code window.__hdtUsdaResult(id, ok, payload)}.
+     */
+    @JavascriptInterface
+    public void usdaSearch(String requestId, String query, String apiKey, String pageSize) {
+        if (!isTrustedCall() || closed.get()) {
+            return;
+        }
+        final String safeQuery = query == null ? "" : query.trim();
+        final String key = (apiKey == null || apiKey.trim().isEmpty()) ? "DEMO_KEY" : apiKey.trim();
+        int size = 8;
+        try {
+            size = Integer.parseInt(pageSize == null ? "" : pageSize.trim());
+        } catch (Exception ignored) {
+            // keep default
+        }
+        size = Math.max(1, Math.min(25, size));
+        final int page = size;
+        executor.execute(() -> {
+            boolean ok = false;
+            String payload;
+            try {
+                String url = "https://api.nal.usda.gov/fdc/v1/foods/search?api_key="
+                        + URLEncoder.encode(key, "UTF-8")
+                        + "&query=" + URLEncoder.encode(safeQuery, "UTF-8")
+                        + "&pageSize=" + page
+                        + "&dataType=" + URLEncoder.encode("Foundation,SR Legacy,Survey (FNDDS)", "UTF-8");
+                HttpResult result = get(url, 15000);
+                if (result.status >= 200 && result.status < 300) {
+                    ok = true;
+                    payload = result.body;
+                } else if (result.status == 429) {
+                    payload = errorPayload("rate_limited", result.status,
+                            "USDA 请求过于频繁，请稍后再试或换用自定义 API Key。", result.body);
+                } else if (result.status == 401 || result.status == 403) {
+                    payload = errorPayload("auth", result.status,
+                            "USDA API Key 无效，请检查设置。", result.body);
+                } else {
+                    payload = errorPayload(reasonFor(result.status), result.status,
+                            "USDA 检索失败（HTTP " + result.status + "）。", result.body);
+                }
+            } catch (SocketTimeoutException error) {
+                payload = errorPayload("timeout", 0, "USDA 检索超时，请检查网络。", "");
+            } catch (Exception error) {
+                payload = errorPayload("network", 0,
+                        "USDA 检索网络失败：" + safeMessage(error), "");
+            }
+            dispatchTo("__hdtUsdaResult", requestId, ok, payload);
+        });
+    }
+
+    /**
+     * Encrypted secret storage (Android Keystore, AES/GCM). Used for the AI and USDA API keys
+     * so they never live in WebView localStorage as plaintext.
+     */
+    @JavascriptInterface
+    public boolean setSecret(String name, String value) {
+        return isTrustedCall() && SecureStore.put(activity, name, value);
+    }
+
+    @JavascriptInterface
+    public String getSecret(String name) {
+        return isTrustedCall() ? SecureStore.get(activity, name) : "";
+    }
+
+    @JavascriptInterface
+    public boolean removeSecret(String name) {
+        if (!isTrustedCall()) {
+            return false;
+        }
+        SecureStore.remove(activity, name);
+        return true;
+    }
+
     @JavascriptInterface
     public String getVersion() {
-        return "1.0.0";
+        return isTrustedCall() ? "1.0.0" : "";
     }
 
     @JavascriptInterface
     public void openExternal(String url) {
-        if (url == null) {
+        if (!isTrustedCall() || url == null) {
             return;
         }
         String lower = url.toLowerCase(Locale.ROOT);
-        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+        if (!lower.startsWith("https://")) {
             return;
         }
         activity.runOnUiThread(() -> {
@@ -80,7 +182,7 @@ public class AiBridge {
 
     @JavascriptInterface
     public void toast(String message) {
-        if (message == null) {
+        if (!isTrustedCall() || message == null) {
             return;
         }
         activity.runOnUiThread(() ->
@@ -209,6 +311,25 @@ public class AiBridge {
         return new HttpResult(status, text);
     }
 
+    private HttpResult get(String url, int timeout) throws Exception {
+        if (url == null || !url.toLowerCase(Locale.ROOT).startsWith("https://")) {
+            throw new IllegalArgumentException("url must use https");
+        }
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(Math.min(timeout, 20_000));
+        connection.setReadTimeout(timeout);
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("User-Agent", "HealthyDietTracker-Android/1.0");
+        int status = connection.getResponseCode();
+        InputStream input = status >= 200 && status < 300
+                ? connection.getInputStream()
+                : connection.getErrorStream();
+        String text = readAll(input);
+        connection.disconnect();
+        return new HttpResult(status, text);
+    }
+
     private static String readAll(InputStream input) throws Exception {
         if (input == null) {
             return "";
@@ -217,7 +338,12 @@ public class AiBridge {
              ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
             byte[] chunk = new byte[8192];
             int read;
+            int total = 0;
             while ((read = stream.read(chunk)) != -1) {
+                total += read;
+                if (total > MAX_RESPONSE_BYTES) {
+                    throw new IOException("response exceeds size limit");
+                }
                 buffer.write(chunk, 0, read);
             }
             return buffer.toString("UTF-8");
@@ -226,6 +352,9 @@ public class AiBridge {
 
     private static String chatUrl(String endpoint) {
         String base = endpoint == null ? "" : endpoint.trim();
+        if (!base.toLowerCase(Locale.ROOT).startsWith("https://")) {
+            throw new IllegalArgumentException("endpoint must use https");
+        }
         if (base.endsWith("/chat/completions")) {
             return base;
         }
@@ -277,10 +406,13 @@ public class AiBridge {
     }
 
     private void dispatch(String requestId, boolean ok, String payload, boolean testOnly) {
+        dispatchTo(testOnly ? "__hdtNativeAiTest" : "__hdtNativeAiResult", requestId, ok, payload);
+    }
+
+    private void dispatchTo(String callback, String requestId, boolean ok, String payload) {
         if (closed.get() || webView == null) {
             return;
         }
-        String callback = testOnly ? "__hdtNativeAiTest" : "__hdtNativeAiResult";
         String script = "window." + callback + "(" + JSONObject.quote(requestId) + ","
                 + (ok ? "true" : "false") + "," + JSONObject.quote(payload) + ");";
         activity.runOnUiThread(() -> {

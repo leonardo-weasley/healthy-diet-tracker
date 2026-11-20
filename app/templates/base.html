@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#eef3f0">
   <meta name="description" content="健康饮食记录：上传餐食照片，确认食物与重量，追踪每日营养摄入。">
   <title>{% block title %}健康饮食记录{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -37,7 +37,7 @@
     </div>
   </header>
 
-  <main id="main-content" class="shell page {% block main_class %}{% endblock %}">
+  <main id="main-content" class="shell page{% block main_class %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
 

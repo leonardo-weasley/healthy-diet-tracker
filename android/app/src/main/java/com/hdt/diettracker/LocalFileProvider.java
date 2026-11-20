@@ -25,6 +25,17 @@ public class LocalFileProvider extends ContentProvider {
         return Uri.parse("content://" + context.getPackageName() + ".files/files/" + file.getName());
     }
 
+    private static File resolveFile(Context context, String name) throws FileNotFoundException {
+        if (name == null || name.isEmpty() || name.contains("/") || name.contains("\\")
+                || name.contains("..") || name.indexOf('\0') >= 0) {
+            throw new FileNotFoundException("Invalid file name");
+        }
+        if (context == null) {
+            throw new FileNotFoundException("No context");
+        }
+        return new File(new File(context.getCacheDir(), "camera"), name);
+    }
+
     @Override
     public boolean onCreate() {
         return true;
@@ -32,15 +43,7 @@ public class LocalFileProvider extends ContentProvider {
 
     @Override
     public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-        String name = uri.getLastPathSegment();
-        if (name == null || name.contains("/") || name.contains("..")) {
-            throw new FileNotFoundException("Invalid file name");
-        }
-        Context context = getContext();
-        if (context == null) {
-            throw new FileNotFoundException("No context");
-        }
-        File file = new File(new File(context.getCacheDir(), "camera"), name);
+        File file = resolveFile(getContext(), uri.getLastPathSegment());
         int flags = ParcelFileDescriptor.MODE_READ_WRITE | ParcelFileDescriptor.MODE_CREATE;
         if ("r".equals(mode)) {
             flags = ParcelFileDescriptor.MODE_READ_ONLY;
@@ -55,7 +58,12 @@ public class LocalFileProvider extends ContentProvider {
         if (name == null) {
             return null;
         }
-        File file = new File(new File(getContext().getCacheDir(), "camera"), name);
+        File file;
+        try {
+            file = resolveFile(getContext(), name);
+        } catch (FileNotFoundException error) {
+            return null;
+        }
         String[] columns = projection != null ? projection
                 : new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE};
         MatrixCursor cursor = new MatrixCursor(columns, 1);

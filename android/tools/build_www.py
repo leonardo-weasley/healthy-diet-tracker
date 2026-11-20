@@ -80,7 +80,41 @@ def render_pages(env: Environment) -> dict[str, str]:
     return rendered
 
 
-def inject_shell(html: str) -> str:
+TABBAR_ICONS = {
+    "index.html": '<path d="M4 10.5 12 4l8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>',
+    "upload.html": '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    "history.html": '<path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/>',
+}
+
+TAB_LABELS = {
+    "index.html": "今日",
+    "upload.html": "记录",
+    "history.html": "历史",
+}
+
+
+def build_tabbar(filename: str) -> str:
+    items = []
+    # The result page belongs to the "record a meal" flow, so keep that tab highlighted.
+    active_page = "upload.html" if filename == "result.html" else filename
+    for page in ("index.html", "upload.html", "history.html"):
+        active = " is-active" if page == active_page else ""
+        current = ' aria-current="page"' if page == active_page else ""
+        items.append(
+            f'    <a class="hdt-tab{active}" href="{page}"{current}>'
+            f'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" '
+            f'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+            f'{TABBAR_ICONS[page]}</svg>'
+            f'<span>{TAB_LABELS[page]}</span></a>'
+        )
+    return (
+        '<nav class="hdt-tabbar" aria-label="底部导航">\n'
+        + "\n".join(items)
+        + '\n  </nav>\n  '
+    )
+
+
+def inject_shell(html: str, filename: str = "") -> str:
     """Add the native-app shell (splash, menu, app.css, app.js) to a page."""
     html = html.replace(
         '<link rel="stylesheet" href="static/css/style.css">',
@@ -90,10 +124,18 @@ def inject_shell(html: str) -> str:
     # Chart.js is loaded from a CDN in the web app; the APK must work offline.
     html = html.replace(
         '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>',
-        '<script src="static/js/chart.umd.min.js" defer></script>',
+        '  <script src="static/js/chart.umd.min.js" defer></script>',
     )
     for source, target in LINK_MAP.items():
         html = html.replace(source, target)
+
+    # Same-origin helper for the on-screen keyboard; CSP keeps script-src 'self',
+    # so this must not be an inline <script>.
+    html = html.replace(
+        "</head>",
+        '  <script src="static/js/keyboard.js"></script>\n</head>',
+        1,
+    )
 
     # app.js must run before the deferred api.js so the fetch shim is in place.
     html = html.replace(
@@ -102,6 +144,7 @@ def inject_shell(html: str) -> str:
         '  <script src="static/js/core.js"></script>\n'
         '  <script src="static/js/ai-prompt.js"></script>\n'
         '  <script src="static/js/app.js"></script>\n'
+        '  <script src="static/js/usda.js"></script>\n'
         '  <script src="static/js/api.js" defer></script>',
     )
 
@@ -110,15 +153,17 @@ def inject_shell(html: str) -> str:
         '  <div class="hdt-splash-media" id="hdt-splash-media"></div>\n'
         '  <div class="hdt-splash-shade"></div>\n'
         '  <div class="hdt-splash-brand">\n'
-        '    <span class="hdt-splash-logo" aria-hidden="true">\n'
-        '      <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" '
+        '    <span class="hdt-splash-title">\n'
+        '      <span class="hdt-splash-logo" aria-hidden="true">\n'
+        '        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" '
         'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">\n'
-        '        <path d="M12 21c4.2 0 7.5-3.2 7.5-7.2 0-4.2-2.9-7.1-5.6-8.8C11.5 3.6 9 2.4 6.5 3c.2 2.6 1.3 5 3.2 6.7"/>'
-        '\n        <path d="M12 21c-4.2 0-7.5-3.2-7.5-7.2 0-1.6.4-3 1.2-4.2"/>'
-        '\n        <path d="M12 21c0-4.5 1.5-8.2 4.5-10.5"/>\n'
-        '      </svg>\n'
+        '          <path d="M12 21c4.2 0 7.5-3.2 7.5-7.2 0-4.2-2.9-7.1-5.6-8.8C11.5 3.6 9 2.4 6.5 3c.2 2.6 1.3 5 3.2 6.7"/>'
+        '\n          <path d="M12 21c-4.2 0-7.5-3.2-7.5-7.2 0-1.6.4-3 1.2-4.2"/>'
+        '\n          <path d="M12 21c0-4.5 1.5-8.2 4.5-10.5"/>\n'
+        '        </svg>\n'
+        '      </span>\n'
+        '      <strong>健康饮食记录</strong>\n'
         '    </span>\n'
-        '    <strong>健康饮食记录</strong>\n'
         '    <small>拍一张，记一餐</small>\n'
         '  </div>\n'
         '  <button type="button" id="hdt-splash-skip" class="hdt-splash-skip">跳过 <span id="hdt-splash-count">3</span></button>\n'
@@ -126,7 +171,38 @@ def inject_shell(html: str) -> str:
         '<script src="static/js/boot.js"></script>\n'
     )
     html = re.sub(r"(<body[^>]*>)", r"\1\n" + splash.replace("\\", "\\\\"), html, count=1)
+
+    # Bottom tab bar: native-app navigation for phones (top links are hidden by app.css).
+    if filename:
+        html = html.replace(
+            '<div id="toast-region"',
+            build_tabbar(filename) + '<div id="toast-region"',
+            1,
+        )
     return html
+
+
+def copy_verified(src: Path, dst: Path, attempts: int = 4) -> None:
+    """Copy bytes and verify them.
+
+    The project volume is a FUSE mount that can zero-fill the tail of a freshly written
+    file. A byte comparison after each write keeps the APK assets intact.
+    """
+    data = src.read_bytes()
+    for _ in range(attempts):
+        dst.write_bytes(data)
+        if dst.read_bytes() == data:
+            return
+    raise SystemExit(f"copy verification failed: {dst}")
+
+
+def write_verified(path: Path, text: str, attempts: int = 4) -> None:
+    data = text.encode("utf-8")
+    for _ in range(attempts):
+        path.write_bytes(data)
+        if path.read_bytes() == data:
+            return
+    raise SystemExit(f"write verification failed: {path}")
 
 
 def rewrite_js(source: str) -> str:
@@ -144,38 +220,47 @@ def main() -> None:
 
     env = build_environment()
     for filename, html in render_pages(env).items():
-        (OUT / filename).write_text(inject_shell(html), encoding="utf-8")
+        write_verified(OUT / filename, inject_shell(html, filename))
 
     for item in STATIC.iterdir():
+        target = OUT / "static" / item.name
         if item.is_dir():
-            shutil.copytree(item, OUT / "static" / item.name, dirs_exist_ok=True)
+            shutil.copytree(item, target, dirs_exist_ok=True)
+            for child in item.rglob("*"):
+                if child.is_file():
+                    copy_verified(child, target / child.relative_to(item))
         else:
-            shutil.copy2(item, OUT / "static" / item.name)
+            copy_verified(item, target)
 
     # Android shell assets (splash, menu, local API, native bridge glue).
     for item in (ANDROID_DIR / "web").iterdir():
+        target = OUT / "static" / item.name
         if item.is_dir():
-            shutil.copytree(item, OUT / "static" / item.name, dirs_exist_ok=True)
+            shutil.copytree(item, target, dirs_exist_ok=True)
+            for child in item.rglob("*"):
+                if child.is_file():
+                    copy_verified(child, target / child.relative_to(item))
         else:
-            shutil.copy2(item, OUT / "static" / item.name)
+            copy_verified(item, target)
 
     for js in (OUT / "static" / "js").glob("*.js"):
-        js.write_text(rewrite_js(js.read_text(encoding="utf-8")), encoding="utf-8")
+        if js.name not in ("food-data.js", "ai-prompt.js"):
+            write_verified(js, rewrite_js(js.read_text(encoding="utf-8")))
 
-    shutil.copy2(ANDROID_DIR / "vendor" / "chart.umd.min.js", OUT / "static" / "js" / "chart.umd.min.js")
+    copy_verified(ANDROID_DIR / "vendor" / "chart.umd.min.js", OUT / "static" / "js" / "chart.umd.min.js")
 
     food_payload = json.loads(FOOD_DB.read_text(encoding="utf-8"))
-    (OUT / "static" / "js" / "food-data.js").write_text(
+    write_verified(
+        OUT / "static" / "js" / "food-data.js",
         "/* Generated by android/tools/build_www.py — do not edit. */\n"
         "window.HDT_FOOD_DB = " + json.dumps(food_payload, ensure_ascii=False, indent=2) + ";\n",
-        encoding="utf-8",
     )
 
     prompts = load_prompt_module()
-    (OUT / "static" / "js" / "ai-prompt.js").write_text(
+    write_verified(
+        OUT / "static" / "js" / "ai-prompt.js",
         "/* Generated by android/tools/build_www.py — do not edit. */\n"
         "window.HDT_PROMPT = " + json.dumps(prompts.build_prompt(), ensure_ascii=False) + ";\n",
-        encoding="utf-8",
     )
 
     (OUT / "data" / "food_database.json").write_text(

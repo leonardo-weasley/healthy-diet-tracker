@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -13,6 +14,7 @@ import android.provider.MediaStore;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -45,11 +47,24 @@ public class MainActivity extends Activity {
     private static final String APP_ORIGIN = "https://" + APP_HOST;
     private static final String START_URL = APP_ORIGIN + "/www/index.html";
     private static final int REQ_FILE_CHOOSER = 1001;
+    /** Only same-origin app assets may use fetch/XHR; AI and USDA traffic goes through AiBridge. */
+    private static final String CONTENT_SECURITY_POLICY =
+            "default-src 'self'; "
+            + "img-src 'self' data: blob:; "
+            + "style-src 'self' 'unsafe-inline'; "
+            + "script-src 'self'; "
+            + "connect-src 'none'; "
+            + "frame-src 'none'; "
+            + "object-src 'none'; "
+            + "base-uri 'none'; "
+            + "form-action 'self'";
 
     private WebView webView;
     private AiBridge aiBridge;
     private ValueCallback<Uri[]> filePathCallback;
     private Uri pendingCameraUri;
+    /** Written on the UI thread; read by AiBridge from its worker thread. */
+    private volatile String currentPageUrl = START_URL;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -59,10 +74,16 @@ public class MainActivity extends Activity {
         Window window = getWindow();
         window.setStatusBarColor(Color.parseColor("#0F766E"));
         window.setNavigationBarColor(Color.WHITE);
+        // Health data and API keys are on screen; keep them out of screenshots and Recents.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             // Teal status bar keeps the default light icons.
             window.getDecorView().setSystemUiVisibility(0);
         }
+
+        // Explicit: never allow chrome://inspect against a release build.
+        WebView.setWebContentsDebuggingEnabled(false);
+        cleanupCameraCache();
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.WHITE);
@@ -93,7 +114,7 @@ public class MainActivity extends Activity {
         webView.setWebChromeClient(new ChromeClient());
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
 
-        aiBridge = new AiBridge(this, webView);
+        aiBridge = new AiBridge(this, webView, () -> currentPageUrl, APP_ORIGIN);
         webView.addJavascriptInterface(aiBridge, "AndroidHost");
 
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
@@ -152,9 +173,34 @@ public class MainActivity extends Activity {
     private final class AssetWebViewClient extends WebViewClient {
 
         @Override
+        public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            // Main frame only: AiBridge refuses calls when the top document is not app-origin.
+            currentPageUrl = url;
+            super.onPageStarted(view, url, favicon);
+        }
+
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            currentPageUrl = url;
+            super.onPageFinished(view, url);
+        }
+
+        @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
             Uri uri = request.getUrl();
-            if (uri == null || !APP_HOST.equals(uri.getHost())) {
+            if (uri == null) {
+                return blocked();
+            }
+            // The APK is fully offline: remote/file resource loads are denied. Data and blob
+            // URLs are handled inside the renderer and never reach this method.
+            // AI and USDA calls go through AiBridge's HttpURLConnection instead.
+            if (!APP_HOST.equals(uri.getHost())) {
+                String scheme = uri.getScheme() == null
+                        ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+                if ("http".equals(scheme) || "https".equals(scheme)
+                        || "ftp".equals(scheme) || "file".equals(scheme)) {
+                    return blocked();
+                }
                 return null;
             }
             String path = uri.getPath();
@@ -167,10 +213,16 @@ public class MainActivity extends Activity {
             }
             try {
                 InputStream stream = getAssets().open(assetPath);
+                String mime = mimeOf(assetPath);
                 Map<String, String> headers = new HashMap<>();
                 headers.put("Cache-Control", "no-cache");
                 headers.put("X-Content-Type-Options", "nosniff");
-                return new WebResourceResponse(mimeOf(assetPath), "utf-8", 200, "OK", headers, stream);
+                if ("text/html".equals(mime)) {
+                    headers.put("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+                    headers.put("X-Frame-Options", "DENY");
+                    headers.put("Referrer-Policy", "no-referrer");
+                }
+                return new WebResourceResponse(mime, "utf-8", 200, "OK", headers, stream);
             } catch (IOException error) {
                 return notFound();
             }
@@ -186,12 +238,20 @@ public class MainActivity extends Activity {
             if ("https".equals(scheme) && APP_HOST.equals(uri.getHost())) {
                 return false;
             }
-            if ("http".equals(scheme) || "https".equals(scheme)) {
+            if (("http".equals(scheme) || "https".equals(scheme)) && request.isForMainFrame()) {
                 openExternal(uri.toString());
-                return true;
             }
+            // Never load non-app content (or remote frames) inside the WebView.
             return true;
         }
+    }
+
+    private static WebResourceResponse blocked() {
+        byte[] body = "Blocked".getBytes(StandardCharsets.UTF_8);
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Cache-Control", "no-store");
+        return new WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", headers,
+                new ByteArrayInputStream(body));
     }
 
     private static WebResourceResponse notFound() {
@@ -303,13 +363,49 @@ public class MainActivity extends Activity {
             } else if (pendingCameraUri != null) {
                 results = new Uri[]{pendingCameraUri};
             }
+        } else {
+            deletePendingCameraFile();
         }
         filePathCallback.onReceiveValue(results);
         filePathCallback = null;
         pendingCameraUri = null;
     }
 
+    /** Remove stale camera photos from earlier sessions (they contain meal pictures). */
+    private void cleanupCameraCache() {
+        File[] files = new File(getCacheDir(), "camera").listFiles();
+        if (files == null) {
+            return;
+        }
+        long cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L;
+        for (File file : files) {
+            if (file.isFile() && file.lastModified() < cutoff) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+        }
+    }
+
+    private void deletePendingCameraFile() {
+        Uri uri = pendingCameraUri;
+        if (uri == null) {
+            return;
+        }
+        String name = uri.getLastPathSegment();
+        if (name == null) {
+            return;
+        }
+        File file = new File(new File(getCacheDir(), "camera"), name);
+        if (file.isFile()) {
+            //noinspection ResultOfMethodCallIgnored
+            file.delete();
+        }
+    }
+
     private void openExternal(String url) {
+        if (url == null || !url.toLowerCase(Locale.ROOT).startsWith("https://")) {
+            return;
+        }
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

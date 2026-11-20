@@ -22,6 +22,12 @@
 
 ## 功能
 
+- **手机端界面**：导航栏移到底部（今日 / 记录 / 历史），采用 Apple 液态玻璃风格的
+  浮动胶囊导航（半透明、背景模糊、高光边缘、适配安全区）；页面内容与桌面版一致。
+- **USDA 补录**：AI 识别结果在本地食物库中匹配不到时，该行会出现「USDA 匹配」按钮。
+  可以手动搜索 USDA FoodData Central 并选择条目，也可以「自动选第一条」；整页还有
+  「自动匹配全部」。选中的食物会写入本机自定义食物库，立即参与营养计算，并随餐食
+  一起保存到 IndexedDB，下次可直接匹配。
 - **开屏画面**：右上角“跳过”；`⋮ → 开屏画面` 可上传 JPG / PNG / WebP / GIF / SVG，
   本机保存，下次启动生效，可一键恢复默认。
 - **AI 接口切换**：`⋮ → API 设置` 内置通义千问 Qwen-VL、OpenAI 预设，也可填任意
@@ -42,14 +48,17 @@ android/
 ├── tools/make_icons.py       # 生成各密度启动图标
 ├── web/                      # WebView 专用前端层
 │   ├── js/boot.js            # 开屏（自定义图片、倒计时、跳过）
+│   ├── js/keyboard.js        # 输入法唤起时隐藏底部导航/保存条（CSP 友好，外链脚本）
 │   ├── js/core.js            # 纯营养计算/校验逻辑（UMD，可被 Node 单测）
 │   ├── js/app.js             # 本地 /api/v1 实现、IndexedDB、设置/开屏/关于 UI、相机入口
+│   ├── js/usda.js            # 未匹配食物的 USDA 检索、自动匹配与自定义食物入库
 │   └── css/app.css
 ├── app/src/main/
 │   ├── AndroidManifest.xml
 │   ├── java/com/hdt/diettracker/
 │   │   ├── MainActivity.java      # WebView 壳、assets 虚拟 https 源、文件选择/拍照
-│   │   ├── AiBridge.java          # 原生 HTTP 调 AI，规避 CORS
+│   │   ├── AiBridge.java          # 原生 HTTP 调 AI / USDA，规避 CORS；密钥桥
+│   │   ├── SecureStore.java       # Android Keystore AES/GCM 加密的密钥存储
 │   │   └── LocalFileProvider.java # 相机输出 content:// URI
 │   └── res/                       # 图标、主题、Android 12 开屏
 └── tests/                    # core.js 与 Python Decimal 的一致性测试
@@ -62,6 +71,13 @@ android/
   映射到 `assets/www`，让 localStorage / IndexedDB 在正常 origin 下可用。
 - **原生 AI 桥**：WebView 直接请求第三方接口会受 CORS 限制，改由 Java `HttpURLConnection`
   发送，再把结果回调给页面；API Key 不经过任何中间服务器。
+- **只走 https + 资源全离线**：WebView 只加载 `assets/www`，远程子资源一律 403，HTML 响应带
+  CSP（`connect-src 'none'`）；AI 与 USDA 由原生桥用 HTTPS 发出，设置页拒绝 `http://`。
+- **原生桥有来源校验**：`AndroidHost` 的每个方法先检查主文档是否为 app origin；
+  远程页面只交给系统浏览器打开，且仅限 `https://`。
+- **Key 加密存储**：AI/USDA Key 由 Android Keystore 的 AES-256/GCM 密钥加密后写入
+  `SharedPreferences`（只存密文），不再进入 WebView `localStorage`；旧版本残留的明文
+  会在首次读取设置时自动迁移并清除。
 - **自定义 ContentProvider**：相机输出用 `content://com.hdt.diettracker.files/...`，
   避免 Android 7+ 的 `FileUriExposedException`，也不需要存储权限。
 
@@ -102,3 +118,5 @@ node core.test.js                  # 29 种食物 × 6 种重量 + 组合餐/校
 - 营养数值是估算值，不能替代医疗或专业营养建议。
 - AI 识别质量取决于你配置的模型；必须是支持图片输入的 OpenAI 兼容模型。
 - 应用不包含任何内置 API Key；未配置时“分析照片”会提示前往设置。
+- API Key 由系统 Keystore 加密；如果 Keystore 条目失效（换机、恢复备份或清除安全数据），
+  需要重新填写 Key。
