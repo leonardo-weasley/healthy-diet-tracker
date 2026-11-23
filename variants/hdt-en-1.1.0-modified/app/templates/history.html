@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}History · Healthy Diet Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Review</p>
+    <h1>History</h1>
+    <p class="lead">Browse every meal by date, expand for details, and delete anything you logged by mistake.</p>
+  </div>
+  <a class="btn btn-primary" href="/upload">＋ Log a meal</a>
+</section>
+
+<form id="history-filters" class="card filter-card" novalidate>
+  <div class="filter-top">
+    <div class="quick-ranges" role="group" aria-label="Quick date ranges">
+      <button type="button" class="chip" data-range="today">Today</button>
+      <button type="button" class="chip" data-range="7d">Last 7 days</button>
+      <button type="button" class="chip is-active" data-range="all">All</button>
+    </div>
+
+    <div class="filter-dates">
+      <label class="field field-inline">
+        <span class="field-label">Start date</span>
+        <input id="date-from" class="input input-date" type="date">
+      </label>
+      <span class="date-sep" aria-hidden="true">—</span>
+      <label class="field field-inline">
+        <span class="field-label">End date</span>
+        <input id="date-to" class="input input-date" type="date">
+      </label>
+      <button id="apply-filters" class="btn btn-primary" type="submit">Search</button>
+      <button id="reset-filters" class="btn btn-ghost" type="button">Clear</button>
+    </div>
+  </div>
+  <p id="filter-error" class="field-error" role="alert" hidden></p>
+</form>
+
+<div id="history-error" class="alert alert-error" role="alert" hidden>
+  <span class="alert-icon" aria-hidden="true">!</span>
+  <div class="alert-body">
+    <strong class="alert-title">Failed to load meals</strong>
+    <p id="history-error-text">Please try again later.</p>
+  </div>
+  <button id="retry-history" class="btn btn-ghost btn-sm" type="button">Retry</button>
+</div>
+
+<div id="history-loading" class="history-skeleton" aria-hidden="true">
+  <div class="card skeleton-card"><span class="skeleton skeleton-line w-30"></span><span class="skeleton skeleton-line w-70 tall"></span><span class="skeleton skeleton-line w-50"></span></div>
+  <div class="card skeleton-card"><span class="skeleton skeleton-line w-30"></span><span class="skeleton skeleton-line w-70 tall"></span><span class="skeleton skeleton-line w-50"></span></div>
+  <div class="card skeleton-card"><span class="skeleton skeleton-line w-30"></span><span class="skeleton skeleton-line w-70 tall"></span><span class="skeleton skeleton-line w-50"></span></div>
+</div>
+
+<ul id="history-list" class="history-list" aria-label="Meal records"></ul>
+
+<div id="history-empty" class="empty-state" hidden>
+  <span class="empty-icon" aria-hidden="true">🗓️</span>
+  <h3 id="history-empty-title">No meals yet</h3>
+  <p id="history-empty-text">Upload a meal photo and it will appear here after you save it.</p>
+  <div class="empty-actions">
+    <button id="empty-action" class="btn btn-primary" type="button" hidden>Clear filters</button>
+    <a id="empty-upload-link" class="btn btn-primary" href="/upload">Log your first meal</a>
+  </div>
+</div>
+
+<nav id="pagination" class="pagination" aria-label="History pagination" hidden>
+  <button id="prev-page" class="btn btn-ghost btn-sm" type="button">← Previous</button>
+  <span id="page-info" class="page-info">Page 1</span>
+  <button id="next-page" class="btn btn-ghost btn-sm" type="button">Next →</button>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/history.js') }}" defer></script>
+{% endblock %}

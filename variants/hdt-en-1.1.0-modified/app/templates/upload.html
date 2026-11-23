@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Upload meal · Healthy Diet Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Log a new meal</p>
+    <h1>Upload a meal photo</h1>
+    <p class="lead">Choose a photo and tell us which meal it is. AI will identify the foods and estimate their weights.</p>
+  </div>
+  <a class="back-link" href="/">← Back to overview</a>
+</section>
+
+<div class="upload-layout">
+  <form id="upload-form" class="card upload-card" novalidate>
+    <section class="step-block" aria-labelledby="step-photo-title">
+      <div class="step-head">
+        <span class="step-num" aria-hidden="true">1</span>
+        <h2 id="step-photo-title">Choose a photo</h2>
+      </div>
+
+      <label id="drop-zone" class="drop-zone" for="file-input">
+        <input id="file-input" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp">
+        <span class="drop-zone-empty" id="drop-zone-empty">
+          <span class="drop-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <circle cx="8.5" cy="10" r="1.5"></circle>
+              <path d="M21 15l-4.5-4.5L9 18"></path>
+            </svg>
+          </span>
+          <span class="drop-title">Click to choose, or drag a photo here</span>
+          <span class="drop-hint">JPG / PNG / WebP, up to 8 MB</span>
+        </span>
+      </label>
+
+      <div id="preview-wrap" class="preview-wrap" hidden>
+        <img id="preview" class="preview-image" alt="Preview of the selected meal photo">
+        <div class="preview-meta">
+          <p id="file-meta" class="file-meta"></p>
+          <button id="clear-file-btn" class="btn btn-ghost btn-sm" type="button">Choose another</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="step-block" aria-labelledby="step-meal-title">
+      <div class="step-head">
+        <span class="step-num" aria-hidden="true">2</span>
+        <h2 id="step-meal-title">Which meal is this?</h2>
+      </div>
+
+      <fieldset class="meal-type-fieldset" id="meal-type-group">
+        <legend class="sr-only">Choose meal type</legend>
+        <div class="segmented">
+          <input type="radio" id="meal-breakfast" name="meal_type" value="breakfast">
+          <label for="meal-breakfast">Breakfast</label>
+          <input type="radio" id="meal-lunch" name="meal_type" value="lunch">
+          <label for="meal-lunch">Lunch</label>
+          <input type="radio" id="meal-dinner" name="meal_type" value="dinner">
+          <label for="meal-dinner">Dinner</label>
+          <input type="radio" id="meal-snack" name="meal_type" value="snack">
+          <label for="meal-snack">Snack</label>
+        </div>
+      </fieldset>
+      <p class="hint">Preselected based on the current time; you can change it. The meal type is your call — AI does not decide it.</p>
+    </section>
+
+    <div id="upload-error" class="alert alert-error" role="alert" hidden>
+      <span class="alert-icon" aria-hidden="true">!</span>
+      <div class="alert-body">
+        <strong class="alert-title">Could not analyze this photo</strong>
+        <p id="upload-error-text"></p>
+      </div>
+    </div>
+
+    <p id="analyze-status" class="status-line" role="status" aria-live="polite"></p>
+
+    <button id="analyze-btn" class="btn btn-primary btn-lg btn-block" type="submit" disabled>
+      Analyze this photo
+    </button>
+    <p class="hint hint-center">Analysis usually takes 3–10 seconds. Please keep this page open.</p>
+
+    <p class="manual-entry">
+      <span>Rather not use a photo?</span>
+      <button id="manual-entry-btn" class="link-button" type="button">Log this meal manually</button>
+    </p>
+  </form>
+
+  <aside class="upload-aside" aria-label="Photo tips">
+    <section class="card tips-card">
+      <h2 class="card-title">A clear photo means a better match</h2>
+      <ul class="tips-list">
+        <li><span aria-hidden="true">☀️</span><div><strong>Good lighting</strong><p>Avoid backlight and large shadows.</p></div></li>
+        <li><span aria-hidden="true">📷</span><div><strong>Shoot from above</strong><p>Keep the plate and all the food in frame.</p></div></li>
+        <li><span aria-hidden="true">🥢</span><div><strong>Add a reference object</strong><p>Chopsticks or a spoon help estimate portion size.</p></div></li>
+        <li><span aria-hidden="true">🍲</span><div><strong>Watch out for mixed dishes</strong><p>Rice bowls and noodle soups are easy to misread; you can correct them in the next step.</p></div></li>
+      </ul>
+    </section>
+
+    <section class="card privacy-card">
+      <h2 class="card-title">About your data</h2>
+      <p>Photos are stored in the local <code>uploads/</code> directory. When you tap "Analyze", the photo is sent to the AI service for recognition only. The API key is read only on the device side and never exposed to the browser.</p>
+    </section>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/upload.js') }}" defer></script>
+{% endblock %}
