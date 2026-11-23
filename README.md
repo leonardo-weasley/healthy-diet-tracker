@@ -554,6 +554,14 @@ Windows 可双击 `start.cmd`，Linux/macOS 运行 `./start.sh`；首次安装�
 ---
 
 <div align="center">
+
+<img src="./docs/quail-bicycle.svg" width="450" alt="骑自行车欧耶"/>
+
+</div>
+
+---
+
+<div align="center">
   <b>Healthy Diet Tracker</b> · 健康饮食追踪器<br>
   MIT Licensed · 课程项目 MVP · 2026
 </div>
